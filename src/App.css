@@ -75,69 +75,84 @@ body, html, #root {
 .animate-spin { animation: spin 1s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
-/* --- MODERN WEB APP MOBILE (PERBAIKAN PILIH NEGARA) --- */
+/* --- MODERN MOBILE APP UX (FIX TILELEP) --- */
 @media (max-width: 768px) {
-  body, html, #root, .app-container { overflow-y: auto !important; height: auto !important; }
+  /* 1. Paksa body bisa di-scroll ka handap */
+  body, html, #root, .app-container { 
+    overflow-y: auto !important; 
+    height: auto !important; 
+  }
 
-  /* Bottom Navigation */
+  /* 2. Navigasi Handap (Bottom Nav) */
   .sidebar {
     position: fixed; bottom: 0; left: 0; 
     width: 100% !important; height: 65px !important;
-    background: #111827; border-right: none; border-top: 1px solid #1f2937;
+    background: #111827; border-top: 1px solid #1f2937;
     flex-direction: row !important; justify-content: space-around;
-    z-index: 999;
+    z-index: 9999;
   }
-  .sidebar-logo, .list-item span { display: none !important; }
-  .list-item { flex: 1; justify-content: center; align-items: center; padding: 10px; border-left: none !important; }
-  .list-item.active { border-bottom: 3px solid #2563eb; background: none; }
+  .sidebar-logo, .sidebar span { display: none !important; }
+  .list-item { flex: 1; justify-content: center; padding: 10px; border: none !important; }
+  .list-item.active { border-bottom: 4px solid #2563eb; }
 
-  /* Layout Numpuk ka Handap */
-  .main-content { padding-bottom: 80px; } 
-  .header-top { position: sticky; top: 0; z-index: 100; }
+  /* 3. Main Content & Wrapper */
+  .main-content { padding-bottom: 80px; height: auto !important; overflow: visible !important; }
+  .header-top { position: sticky; top: 0; z-index: 1000; }
   
   .dashboard-wrapper {
-    display: flex !important; flex-direction: column !important;
-    height: auto !important; padding: 12px; gap: 15px;
+    display: flex !important; 
+    flex-direction: column !important;
+    height: auto !important; /* Ieu meh teu neukteuk eusi */
+    overflow: visible !important;
+    padding: 15px; gap: 20px;
   }
 
+  /* 4. FIX PANEL & SCROLL AREA (NAGARA/PROVIDER) */
   .panel-card { 
     width: 100% !important; 
-    min-height: auto !important; 
+    height: auto !important; /* Kudu auto meh nuturkeun eusi */
+    max-height: none !important;
+    overflow: visible !important; 
+    background: #161d2f;
     border-radius: 12px;
-    overflow: visible !important; /* Meh teu nyumput eusina */
   }
 
-  /* --- FIX PILIH NEGARA & PROVIDER --- */
+  /* Ieu nu ngatur daptar nagara meh bisa katingali kabeh */
   .scroll-area { 
-    overflow-y: visible !important; 
-    height: auto !important; 
-    padding: 15px; 
+    overflow-y: auto !important; 
+    max-height: 450px !important; /* Watesan jangkung kotak daptar meh bisa di-scroll di jero */
+    padding: 15px;
+    background: rgba(0,0,0,0.1);
+    border-radius: 8px;
+    -webkit-overflow-scrolling: touch; /* Meh smooth di iPhone */
   }
 
+  /* 5. PROVIDER GRID & INPUT */
   .provider-grid { 
     display: grid !important;
-    grid-template-columns: repeat(3, 1fr) !important; /* Tetep 3 kolom meh rapih */
-    gap: 8px !important; 
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 10px !important;
     margin-top: 10px;
-    overflow: visible !important;
   }
-
+  
   .provider-btn {
-    padding: 12px 5px !important; /* Ngabadagkeun tombol meh gampang diklik */
+    padding: 12px 5px !important;
     font-size: 11px !important;
-    height: auto !important;
+    min-height: 45px; /* Meh jempol gampang ngetap */
+    display: flex; align-items: center; justify-content: center;
   }
 
   .search-input-custom {
-    padding: 12px 12px 12px 35px !important; /* Input leuwih jangkung */
-    font-size: 14px !important; /* Standar mobile meh teu auto-zoom */
+    height: 45px !important;
+    font-size: 16px !important; /* Standar meh browser teu auto-zoom */
+    padding-left: 35px !important;
   }
 
   /* Tombol Order */
-  .btn-order-single, .btn-order-mass { 
-    padding: 18px !important; 
-    font-size: 14px !important; 
-    border-radius: 10px; 
+  .btn-order-single, .btn-order-mass {
+    height: 55px !important;
+    font-size: 14px !important;
     margin-top: 15px;
+    border-radius: 10px;
   }
 }
