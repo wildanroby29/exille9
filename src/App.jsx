@@ -66,7 +66,7 @@ export default function App() {
       setActiveOrders(prev => {
         return prev.map(o => {
           const age = (Date.now() - o.createdAt) / 1000;
-          if (!o.otp && age > 120 && o.status === 'WAITING') {
+          if (!o.otp && age > 300 && o.status === 'WAITING') {
             fetch(`${API_URL}/cancel-order?id=${o.id}`).catch(e => console.log("Auto-cancel failed"));
             return { ...o, status: 'EXPIRED' };
           }
