@@ -75,84 +75,83 @@ body, html, #root {
 .animate-spin { animation: spin 1s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
-/* --- MODERN MOBILE APP UX (FIX TILELEP) --- */
+/* --- COMPACT MOBILE UX (FOKUS FUNGSI & ACTIVITY) --- */
 @media (max-width: 768px) {
-  /* 1. Paksa body bisa di-scroll ka handap */
+  /* Buka scroll tapi tetep efisien */
   body, html, #root, .app-container { 
     overflow-y: auto !important; 
     height: auto !important; 
   }
 
-  /* 2. Navigasi Handap (Bottom Nav) */
+  /* Navigasi Compact */
   .sidebar {
     position: fixed; bottom: 0; left: 0; 
-    width: 100% !important; height: 65px !important;
+    width: 100% !important; height: 55px !important;
     background: #111827; border-top: 1px solid #1f2937;
     flex-direction: row !important; justify-content: space-around;
     z-index: 9999;
   }
   .sidebar-logo, .sidebar span { display: none !important; }
-  .list-item { flex: 1; justify-content: center; padding: 10px; border: none !important; }
-  .list-item.active { border-bottom: 4px solid #2563eb; }
+  .list-item { flex: 1; justify-content: center; padding: 5px; border: none !important; }
+  .list-item.active { border-bottom: 3px solid #2563eb; background: rgba(37, 99, 235, 0.1); }
 
-  /* 3. Main Content & Wrapper */
-  .main-content { padding-bottom: 80px; height: auto !important; overflow: visible !important; }
-  .header-top { position: sticky; top: 0; z-index: 1000; }
-  
+  /* Main Layout Padet */
+  .main-content { padding-bottom: 65px; height: auto !important; }
+  .header-top { position: sticky; top: 0; z-index: 1000; height: 40px !important; }
+  .status-bar { font-size: 9px; gap: 10px; }
+  .balance-amt { font-size: 13px; }
+
   .dashboard-wrapper {
     display: flex !important; 
     flex-direction: column !important;
-    height: auto !important; /* Ieu meh teu neukteuk eusi */
-    overflow: visible !important;
-    padding: 15px; gap: 20px;
+    height: auto !important;
+    padding: 8px; 
+    gap: 8px; /* Spasi antar panel diperpet */
   }
 
-  /* 4. FIX PANEL & SCROLL AREA (NAGARA/PROVIDER) */
+  /* Panel Card Ringkas */
   .panel-card { 
     width: 100% !important; 
-    height: auto !important; /* Kudu auto meh nuturkeun eusi */
-    max-height: none !important;
-    overflow: visible !important; 
-    background: #161d2f;
-    border-radius: 12px;
-  }
-
-  /* Ieu nu ngatur daptar nagara meh bisa katingali kabeh */
-  .scroll-area { 
-    overflow-y: auto !important; 
-    max-height: 450px !important; /* Watesan jangkung kotak daptar meh bisa di-scroll di jero */
-    padding: 15px;
-    background: rgba(0,0,0,0.1);
+    height: auto !important; 
     border-radius: 8px;
-    -webkit-overflow-scrolling: touch; /* Meh smooth di iPhone */
+    background: #161d2f;
+  }
+  .panel-header { padding: 6px 12px; font-size: 9px; }
+
+  /* Area Pilih Nagara/Provider - Moal Ngajepit */
+  .scroll-area { 
+    max-height: 280px !important; /* Dikonci jangkungna meh fungsi handap naek */
+    overflow-y: auto !important; 
+    padding: 10px;
+    background: rgba(0,0,0,0.2);
   }
 
-  /* 5. PROVIDER GRID & INPUT */
+  /* Grid & Input Leutik tapi Jelas */
   .provider-grid { 
     display: grid !important;
     grid-template-columns: repeat(3, 1fr) !important;
-    gap: 10px !important;
-    margin-top: 10px;
+    gap: 5px !important;
   }
-  
-  .provider-btn {
-    padding: 12px 5px !important;
-    font-size: 11px !important;
-    min-height: 45px; /* Meh jempol gampang ngetap */
-    display: flex; align-items: center; justify-content: center;
+  .provider-btn { padding: 8px 2px !important; font-size: 9px !important; }
+  .search-input-custom { height: 35px !important; font-size: 13px !important; padding-left: 28px !important; }
+
+  /* TOMBOL ORDER - DIKECILKEUN MEH TEU NGADAHAR TEMPAT */
+  .btn-order-single { 
+    padding: 8px !important; 
+    font-size: 11px !important; 
+    margin-top: 8px; 
+    border-radius: 6px; 
+  }
+  .btn-order-mass { 
+    padding: 10px !important; 
+    font-size: 11px !important; 
+    margin-top: 4px; 
+    border-radius: 6px; 
   }
 
-  .search-input-custom {
-    height: 45px !important;
-    font-size: 16px !important; /* Standar meh browser teu auto-zoom */
-    padding-left: 35px !important;
-  }
-
-  /* Tombol Order */
-  .btn-order-single, .btn-order-mass {
-    height: 55px !important;
-    font-size: 14px !important;
-    margin-top: 15px;
-    border-radius: 10px;
-  }
+  /* Monitor & Slots - Dijieun leuwih padet */
+  .number-slot { padding: 6px 10px; margin-bottom: 5px; }
+  .slot-num { font-size: 13px; }
+  .otp-badge { font-size: 11px; padding: 2px 6px; }
+  .log-row { padding: 4px; font-size: 9px; }
 }
