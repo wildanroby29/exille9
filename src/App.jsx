@@ -33,29 +33,26 @@ export default function App() {
     { name: 'Thailand', code: '22', price: 0.15 }
   ];
 
-  // --- 4. LOGIC LOGIN & LOGOUT ---
-const handleLogin = (e) => {
+  // --- 4. LOGIC LOGIN & LOGOUT (HARDCODED) ---
+  const handleLogin = (e) => {
     e.preventDefault();
     const u = credentials.username.trim().toLowerCase();
     const p = credentials.password.trim();
 
-    // Manggil variabel ti Secrets HF
-    const root1 = import.meta.env.VITE_ADMIN_ROOT1;
-    const root2 = import.meta.env.VITE_ADMIN_ROOT2;
+    // TUNDA PASSWORD MANEH DI DIEU, DAN!
+    const PASS_ADMIN_1 = "admin123"; 
+    const PASS_ADMIN_2 = "admin123";
 
-    // DEBUG: Cék di Console (F12) naha variabelna aya atawa henteu
-    console.log("Sistem mariksa variabel...");
-
-    if (u === "admin1" && root1 && p === root1) {
+    if (u === "admin1" && p === PASS_ADMIN_1) {
       localStorage.setItem('logged_user', u);
       setUser(u);
-    } else if (u === "admin2" && root2 && p === root2) {
+      setLoginError('');
+    } else if (u === "admin2" && p === PASS_ADMIN_2) {
       localStorage.setItem('logged_user', u);
       setUser(u);
+      setLoginError('');
     } else {
-      // Mun gagal, cék naha root1 na mémang kosong (undefined)
-      const errorNa = !root1 ? "Variabel sistem can kacekel (Undefined)" : "Password salah";
-      setLoginError(`❌ ${errorNa}`);
+      setLoginError('❌ Username atawa Password salah!');
     }
   };
   
@@ -143,30 +140,27 @@ const handleLogin = (e) => {
       }));
 
       // 2. Polling OTP
-      setActiveOrders(currentOrders => {
-        const waiting = currentOrders.filter(o => o.status === 'WAITING');
-        waiting.forEach(async (order) => {
-          try {
-            const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
-            const data = await res.json();
-            if (data.status === 'SUCCESS') {
-              setActiveOrders(prev => prev.map(o => {
-                if (o.id === order.id) {
-                  const newLog = { number: o.number, otp: data.code, time: new Date().toLocaleTimeString() };
-                  setLogs(l => [newLog, ...l].slice(0, 50));
-                  return { ...o, otp: data.code, status: 'SUCCESS' };
-                }
-                return o;
-              }));
-              fetchBalance();
-            }
-          } catch (e) {}
-        });
-        return currentOrders;
+      const waiting = activeOrders.filter(o => o.status === 'WAITING');
+      waiting.forEach(async (order) => {
+        try {
+          const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
+          const data = await res.json();
+          if (data.status === 'SUCCESS') {
+            setActiveOrders(prev => prev.map(o => {
+              if (o.id === order.id) {
+                const newLog = { number: o.number, otp: data.code, time: new Date().toLocaleTimeString() };
+                setLogs(l => [newLog, ...l].slice(0, 50));
+                return { ...o, otp: data.code, status: 'SUCCESS' };
+              }
+              return o;
+            }));
+            fetchBalance();
+          }
+        } catch (e) {}
       });
     }, 5000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, activeOrders]);
 
   const copy = (txt) => { if (txt) navigator.clipboard.writeText(txt); };
 
