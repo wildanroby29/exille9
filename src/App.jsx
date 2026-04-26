@@ -4,19 +4,13 @@ import { Zap, Smartphone, Search, Copy, Trash2, History, Wallet, RefreshCw, Chec
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://wildanrobians29-otp-gateway-api.hf.space';
 
-// AMBIL PASSWORD TINA ENV (HF SECRETS)
-const USERS_DB = {
-  "admin1": import.meta.env.VITE_ADMIN_ROOT1,
-  "admin2": import.meta.env.VITE_ADMIN_ROOT2
-};
-
 export default function App() {
-  // --- STATE LOGIN ---
+  // --- 1. STATE LOGIN & AUTH ---
   const [user, setUser] = useState(() => localStorage.getItem('logged_user') || '');
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
 
-  // --- STATE DASHBOARD UTAMA ---
+  // --- 2. STATE DASHBOARD UTAMA ---
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [balance, setBalance] = useState(0); 
   const [selectedCountry, setSelectedCountry] = useState({ name: 'Indonesia', code: '6', price: 0.15 });
@@ -27,7 +21,7 @@ export default function App() {
   const [isOrderingState, setIsOrderingState] = useState(false);
   const isOrdering = useRef(false);
 
-  // --- DATA DASHBOARD (DIPISAH PER USER) ---
+  // --- 3. DATA PER USER (ORDERS & LOGS) ---
   const [activeOrders, setActiveOrders] = useState([]);
   const [logs, setLogs] = useState([]);
 
@@ -39,7 +33,41 @@ export default function App() {
     { name: 'Thailand', code: '22', price: 0.15 }
   ];
 
-  // 1. LOAD DATA PER USER
+  // --- 4. LOGIC LOGIN & LOGOUT ---
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const usernameInput = credentials.username.trim().toLowerCase();
+    const passwordInput = credentials.password.trim();
+
+    // Manggil password ti Secrets Hugging Face
+    const pass1 = import.meta.env.VITE_ADMIN_ROOT1;
+    const pass2 = import.meta.env.VITE_ADMIN_ROOT2;
+
+    let isAuthenticated = false;
+
+    if (usernameInput === "admin1" && pass1 && passwordInput === pass1) {
+      isAuthenticated = true;
+    } else if (usernameInput === "admin2" && pass2 && passwordInput === pass2) {
+      isAuthenticated = true;
+    }
+
+    if (isAuthenticated) {
+      localStorage.setItem('logged_user', usernameInput);
+      setUser(usernameInput);
+      setLoginError('');
+    } else {
+      setLoginError('❌ Username atawa Password salah!');
+      console.log("Debug Auth - Status Env:", pass1 ? "Kacekel" : "Kosong");
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('logged_user');
+    setUser('');
+    setCredentials({ username: '', password: '' });
+  };
+
+  // --- 5. EFFECT: LOAD & SAVE DATA PER USER ---
   useEffect(() => {
     if (user) {
       const savedOrders = localStorage.getItem(`orders_${user}`);
@@ -50,7 +78,6 @@ export default function App() {
     }
   }, [user]);
 
-  // 2. SAVE DATA PER USER
   useEffect(() => {
     if (user) localStorage.setItem(`orders_${user}`, JSON.stringify(activeOrders));
   }, [activeOrders, user]);
@@ -59,25 +86,7 @@ export default function App() {
     if (user) localStorage.setItem(`logs_${user}`, JSON.stringify(logs));
   }, [logs, user]);
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    const { username, password } = credentials;
-    const lowerUser = username.toLowerCase();
-    if (USERS_DB[lowerUser] && USERS_DB[lowerUser] === password) {
-      localStorage.setItem('logged_user', lowerUser);
-      setUser(lowerUser);
-      setLoginError('');
-    } else {
-      setLoginError('❌ Username atawa Password salah!');
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('logged_user');
-    setUser('');
-    setCredentials({ username: '', password: '' });
-  };
-
+  // --- 6. API ACTIONS ---
   const fetchBalance = async () => {
     setIsLoading(true);
     try {
@@ -87,53 +96,6 @@ export default function App() {
     } catch (err) { console.log("Balance offline"); }
     finally { setIsLoading(false); }
   };
-
-  // Timer & Auto-Expire
-  useEffect(() => {
-    if (!user) return;
-    const interval = setInterval(() => {
-      setActiveOrders(prev => {
-        return prev.map(o => {
-          const age = (Date.now() - o.createdAt) / 1000;
-          if (!o.otp && age > 300 && o.status === 'WAITING') {
-            fetch(`${API_URL}/cancel-order?id=${o.id}`).catch(e => {});
-            return { ...o, status: 'EXPIRED' };
-          }
-          return o;
-        });
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [user]);
-
-  // Polling OTP (Stabil)
-  useEffect(() => {
-    if (!user) return;
-    const pollInterval = setInterval(async () => {
-      setActiveOrders(currentOrders => {
-        const waitingOrders = currentOrders.filter(o => o.status === 'WAITING');
-        waitingOrders.forEach(async (order) => {
-          try {
-            const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
-            const data = await res.json();
-            if (data.status === 'SUCCESS') {
-              setActiveOrders(prev => prev.map(o => {
-                if (o.id === order.id) {
-                  const newLog = { number: o.number, otp: data.code, time: new Date().toLocaleTimeString() };
-                  setLogs(l => [newLog, ...l].slice(0, 50));
-                  return { ...o, otp: data.code, status: 'SUCCESS' };
-                }
-                return o;
-              }));
-              fetchBalance();
-            }
-          } catch (err) { console.log("Poll error"); }
-        });
-        return currentOrders; 
-      });
-    }, 5000);
-    return () => clearInterval(pollInterval);
-  }, [user]);
 
   const handleOrder = async (qty = 1) => {
     if (isOrdering.current) return;
@@ -168,9 +130,49 @@ export default function App() {
     } catch (err) { console.log("Cancel failed"); }
   };
 
+  // Polling OTP & Expire Timer
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(async () => {
+      // 1. Cék Expired
+      setActiveOrders(prev => prev.map(o => {
+        const age = (Date.now() - o.createdAt) / 1000;
+        if (!o.otp && age > 300 && o.status === 'WAITING') {
+          fetch(`${API_URL}/cancel-order?id=${o.id}`).catch(() => {});
+          return { ...o, status: 'EXPIRED' };
+        }
+        return o;
+      }));
+
+      // 2. Polling OTP
+      setActiveOrders(currentOrders => {
+        const waiting = currentOrders.filter(o => o.status === 'WAITING');
+        waiting.forEach(async (order) => {
+          try {
+            const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
+            const data = await res.json();
+            if (data.status === 'SUCCESS') {
+              setActiveOrders(prev => prev.map(o => {
+                if (o.id === order.id) {
+                  const newLog = { number: o.number, otp: data.code, time: new Date().toLocaleTimeString() };
+                  setLogs(l => [newLog, ...l].slice(0, 50));
+                  return { ...o, otp: data.code, status: 'SUCCESS' };
+                }
+                return o;
+              }));
+              fetchBalance();
+            }
+          } catch (e) {}
+        });
+        return currentOrders;
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [user]);
+
   const copy = (txt) => { if (txt) navigator.clipboard.writeText(txt); };
 
-  // --- HALAMAN LOGIN ---
+  // --- 7. RENDER: LOGIN SCREEN ---
   if (!user) {
     return (
       <div className="login-screen">
@@ -179,10 +181,10 @@ export default function App() {
           <h2> E X I L L E 9</h2>
           <form onSubmit={handleLogin}>
             <div className="input-group">
-              <User size={16}/><input type="text" placeholder="Username" onChange={(e) => setCredentials({...credentials, username: e.target.value})} required />
+              <User size={16}/><input type="text" placeholder="Username" value={credentials.username} onChange={(e) => setCredentials({...credentials, username: e.target.value})} required />
             </div>
             <div className="input-group">
-              <Lock size={16}/><input type="password" placeholder="Password" onChange={(e) => setCredentials({...credentials, password: e.target.value})} required />
+              <Lock size={16}/><input type="password" placeholder="Password" value={credentials.password} onChange={(e) => setCredentials({...credentials, password: e.target.value})} required />
             </div>
             {loginError && <div className="login-error">{loginError}</div>}
             <button type="submit" className="btn-login">LOGIN SYSTEM</button>
@@ -192,7 +194,7 @@ export default function App() {
     );
   }
 
-  // --- HALAMAN DASHBOARD (STRUKTUR TEU BERUBAH) ---
+  // --- 8. RENDER: DASHBOARD ---
   return (
     <div className="app-container">
       <aside className="sidebar">
@@ -212,7 +214,7 @@ export default function App() {
         <header className="header-top">
           <div className="status-bar">
             <span>USER: <b className="text-blue">{user.toUpperCase()}</b></span>
-            <button onClick={fetchBalance} className="refresh-btn-small">
+            <button onClick={fetchBalance} className="refresh-btn-small" style={{background:'none', border:'none', color:'#64748b', cursor:'pointer', fontSize:'10px'}}>
               <RefreshCw size={10} className={isLoading ? 'animate-spin' : ''}/> REFRESH
             </button>
           </div>
@@ -227,7 +229,6 @@ export default function App() {
             <div className="panel-card">
               <div className="panel-header">Settings</div>
               <div className="scroll-area">
-                {/* ... (Isi Settings tetap sama seperti kode Anda) ... */}
                 <div style={{fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px'}}>PROVIDER</div>
                 <div className="provider-grid">
                   {['Any', 'Telkomsel', 'Indosat', 'XL', 'Axis', 'Three', 'Smartfren'].map(p => (
@@ -249,9 +250,13 @@ export default function App() {
                     ))}
                 </div>
 
-                <button disabled={isOrderingState} className="btn-order-single" onClick={() => handleOrder(1)}>+ ORDER 1 NUMBER</button>
-                <button disabled={isOrderingState} className="btn-order-mass" onClick={() => handleOrder(5)}>🚀 MASS ORDER 5X</button>
-                {errorMsg && <div className="error-notif">{errorMsg}</div>}
+                <button disabled={isOrderingState} className="btn-order-single" onClick={() => handleOrder(1)}>
+                  {isOrderingState ? 'ORDERING...' : '+ ORDER 1 NUMBER'}
+                </button>
+                <button disabled={isOrderingState} className="btn-order-mass" onClick={() => handleOrder(5)}>
+                  {isOrderingState ? 'PROCESSING...' : '🚀 MASS ORDER 5X'}
+                </button>
+                {errorMsg && <div className="text-red" style={{fontSize:'10px', marginTop:'5px'}}>{errorMsg}</div>}
               </div>
             </div>
 
@@ -263,12 +268,12 @@ export default function App() {
                   return (
                     <div key={o.id} className="number-slot" style={{borderColor: o.status === 'EXPIRED' ? '#450a0a' : o.otp ? '#059669' : '#232d42'}}>
                       <div style={{ flex: 1 }}>
-                        <span className="slot-meta">ID: {o.id}</span>
+                        <span style={{fontSize:'9px', color:'#64748b'}}>ID: {o.id}</span>
                         <span className={`slot-num ${o.status === 'EXPIRED' ? 'expired' : ''}`}>{o.number}</span>
                         {!o.otp && o.status !== 'EXPIRED' && (
                           <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px'}}>
                             <span className="timer-text">{Math.floor(timeLeft/60)}:{String(timeLeft%60).padStart(2,'0')}</span>
-                            <span className="status-desc">Nunggu SMS...</span>
+                            <span className="status-desc">Waiting SMS...</span>
                           </div>
                         )}
                         {o.status === 'EXPIRED' && <span className="status-desc text-red">Expired</span>}
@@ -293,7 +298,7 @@ export default function App() {
                 {logs.map((l, i) => (
                   <div key={i} className="log-row">
                     <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '9px'}}>
-                      <span className="text-green font-bold">SUCCESS</span>
+                      <span className="text-green" style={{fontWeight:'bold'}}>SUCCESS</span>
                       <span style={{color: '#64748b'}}>{l.time}</span>
                     </div>
                     <div style={{color: '#fff', margin: '2px 0'}}>{l.number}</div>
@@ -306,7 +311,7 @@ export default function App() {
         ) : (
           <div style={{padding: '60px', textAlign: 'center'}}>
             <CheckCircle size={40} style={{marginBottom: '10px', color: '#64748b'}}/>
-            <h3>Menu {activeMenu} dina pangerjaan</h3>
+            <h3>Menu {activeMenu} is under development</h3>
             <button className="btn-order-mass" style={{width: 'auto', padding: '10px 20px', marginTop: '20px'}} onClick={() => setActiveMenu('dashboard')}>Back to Dashboard</button>
           </div>
         )}
