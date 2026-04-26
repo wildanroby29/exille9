@@ -75,83 +75,94 @@ body, html, #root {
 .animate-spin { animation: spin 1s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
-/* --- COMPACT MOBILE UX (FOKUS FUNGSI & ACTIVITY) --- */
+/* --- COMPACT & FUNCTIONAL MOBILE (ORDER BUTTON IS KING) --- */
 @media (max-width: 768px) {
-  /* Buka scroll tapi tetep efisien */
+  /* Buka scroll body */
   body, html, #root, .app-container { 
     overflow-y: auto !important; 
     height: auto !important; 
   }
 
-  /* Navigasi Compact */
+  /* Navigasi Handap (Sangkan layar tengah lega) */
   .sidebar {
     position: fixed; bottom: 0; left: 0; 
-    width: 100% !important; height: 55px !important;
+    width: 100% !important; height: 50px !important;
     background: #111827; border-top: 1px solid #1f2937;
     flex-direction: row !important; justify-content: space-around;
     z-index: 9999;
   }
   .sidebar-logo, .sidebar span { display: none !important; }
   .list-item { flex: 1; justify-content: center; padding: 5px; border: none !important; }
-  .list-item.active { border-bottom: 3px solid #2563eb; background: rgba(37, 99, 235, 0.1); }
+  .list-item.active { border-bottom: 3px solid #2563eb; }
 
-  /* Main Layout Padet */
-  .main-content { padding-bottom: 65px; height: auto !important; }
+  /* Content Wrapper */
+  .main-content { padding-bottom: 60px; height: auto !important; }
   .header-top { position: sticky; top: 0; z-index: 1000; height: 40px !important; }
-  .status-bar { font-size: 9px; gap: 10px; }
-  .balance-amt { font-size: 13px; }
-
+  
   .dashboard-wrapper {
     display: flex !important; 
     flex-direction: column !important;
     height: auto !important;
     padding: 8px; 
-    gap: 8px; /* Spasi antar panel diperpet */
+    gap: 12px;
   }
 
-  /* Panel Card Ringkas */
+  /* PANEL UTAMA (SETTINGS) */
   .panel-card { 
     width: 100% !important; 
     height: auto !important; 
-    border-radius: 8px;
+    border-radius: 10px;
     background: #161d2f;
+    overflow: visible !important;
   }
-  .panel-header { padding: 6px 12px; font-size: 9px; }
 
-  /* Area Pilih Nagara/Provider - Moal Ngajepit */
+  /* AREA PILIH NAGARA (DIKONCI MEH TOMBOL ORDER NAIK) */
   .scroll-area { 
-    max-height: 280px !important; /* Dikonci jangkungna meh fungsi handap naek */
+    max-height: 200px !important; /* Dikonci pondok meh tombol order katingali di luhur */
     overflow-y: auto !important; 
     padding: 10px;
     background: rgba(0,0,0,0.2);
+    border: 1px solid #1f2937;
+    border-radius: 6px;
   }
 
-  /* Grid & Input Leutik tapi Jelas */
+  /* PROVIDER GRID */
   .provider-grid { 
     display: grid !important;
     grid-template-columns: repeat(3, 1fr) !important;
     gap: 5px !important;
   }
-  .provider-btn { padding: 8px 2px !important; font-size: 9px !important; }
-  .search-input-custom { height: 35px !important; font-size: 13px !important; padding-left: 28px !important; }
+  .provider-btn { padding: 10px 2px !important; font-size: 10px !important; }
 
-  /* TOMBOL ORDER - DIKECILKEUN MEH TEU NGADAHAR TEMPAT */
+  /* TOMBOL ORDER (FITUR UTAMA - JIEUN GEDE & JELAS) */
   .btn-order-single { 
-    padding: 8px !important; 
-    font-size: 11px !important; 
-    margin-top: 8px; 
-    border-radius: 6px; 
-  }
-  .btn-order-mass { 
-    padding: 10px !important; 
-    font-size: 11px !important; 
-    margin-top: 4px; 
-    border-radius: 6px; 
+    background: #1e293b !important;
+    color: #3b82f6 !important;
+    border: 2px solid #3b82f6 !important; /* Dipertegas borderna */
+    padding: 15px !important; 
+    font-size: 14px !important; 
+    font-weight: 900 !important;
+    margin-top: 15px !important;
+    display: block !important;
+    width: 100% !important;
+    text-transform: uppercase;
   }
 
-  /* Monitor & Slots - Dijieun leuwih padet */
-  .number-slot { padding: 6px 10px; margin-bottom: 5px; }
-  .slot-num { font-size: 13px; }
-  .otp-badge { font-size: 11px; padding: 2px 6px; }
-  .log-row { padding: 4px; font-size: 9px; }
+  .btn-order-mass { 
+    background: #2563eb !important; 
+    color: #fff !important; 
+    padding: 18px !important; 
+    font-size: 16px !important; 
+    font-weight: 900 !important;
+    margin-top: 10px !important;
+    margin-bottom: 10px !important;
+    display: block !important;
+    width: 100% !important;
+    text-transform: uppercase;
+    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3); /* Efek glowing meh katingali utama */
+  }
+
+  /* Monitor & Slots */
+  .number-slot { padding: 10px; margin-bottom: 8px; }
+  .slot-num { font-size: 16px; }
 }
