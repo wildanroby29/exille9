@@ -34,33 +34,31 @@ export default function App() {
   ];
 
   // --- 4. LOGIC LOGIN & LOGOUT ---
-  const handleLogin = (e) => {
+const handleLogin = (e) => {
     e.preventDefault();
-    const usernameInput = credentials.username.trim().toLowerCase();
-    const passwordInput = credentials.password.trim();
+    const u = credentials.username.trim().toLowerCase();
+    const p = credentials.password.trim();
 
-    // Manggil password ti Secrets Hugging Face
-    const pass1 = import.meta.env.VITE_ADMIN_ROOT1;
-    const pass2 = import.meta.env.VITE_ADMIN_ROOT2;
+    // Manggil variabel ti Secrets HF
+    const root1 = import.meta.env.VITE_ADMIN_ROOT1;
+    const root2 = import.meta.env.VITE_ADMIN_ROOT2;
 
-    let isAuthenticated = false;
+    // DEBUG: Cék di Console (F12) naha variabelna aya atawa henteu
+    console.log("Sistem mariksa variabel...");
 
-    if (usernameInput === "admin1" && pass1 && passwordInput === pass1) {
-      isAuthenticated = true;
-    } else if (usernameInput === "admin2" && pass2 && passwordInput === pass2) {
-      isAuthenticated = true;
-    }
-
-    if (isAuthenticated) {
-      localStorage.setItem('logged_user', usernameInput);
-      setUser(usernameInput);
-      setLoginError('');
+    if (u === "admin1" && root1 && p === root1) {
+      localStorage.setItem('logged_user', u);
+      setUser(u);
+    } else if (u === "admin2" && root2 && p === root2) {
+      localStorage.setItem('logged_user', u);
+      setUser(u);
     } else {
-      setLoginError('❌ Username atawa Password salah!');
-      console.log("Debug Auth - Status Env:", pass1 ? "Kacekel" : "Kosong");
+      // Mun gagal, cék naha root1 na mémang kosong (undefined)
+      const errorNa = !root1 ? "Variabel sistem can kacekel (Undefined)" : "Password salah";
+      setLoginError(`❌ ${errorNa}`);
     }
   };
-
+  
   const handleLogout = () => {
     localStorage.removeItem('logged_user');
     setUser('');
