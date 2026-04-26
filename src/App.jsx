@@ -77,31 +77,47 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Polling OTP (Fixed Logic)
+// Polling OTP (Ganti ka versi ieu meh stabil)
   useEffect(() => {
     const pollInterval = setInterval(async () => {
-      const waitingOrders = activeOrders.filter(o => o.status === 'WAITING');
-      for (const order of waitingOrders) {
-        try {
-          const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
-          const data = await res.json();
-          if (data.status === 'SUCCESS') {
-            setActiveOrders(prev => prev.map(o => {
-              if (o.id === order.id) {
-                const newLog = { number: o.number, otp: data.code, time: new Date().toLocaleTimeString() };
-                setLogs(l => [newLog, ...l].slice(0, 50));
-                return { ...o, otp: data.code, status: 'SUCCESS' };
-              }
-              return o;
-            }));
-            fetchBalance();
+      // Urang filter heula order nu statusna WAITING
+      // Tapi urang teu make dependency [activeOrders] meh intervalna teu keuna reset
+      setActiveOrders(currentOrders => {
+        const waitingOrders = currentOrders.filter(o => o.status === 'WAITING');
+        
+        waitingOrders.forEach(async (order) => {
+          try {
+            const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
+            const data = await res.json();
+            
+            // Backend Hugging Face maneh méré "SUCCESS" (Huruf Gede)
+            if (data.status === 'SUCCESS') {
+              setActiveOrders(prev => prev.map(o => {
+                if (o.id === order.id) {
+                  const newLog = { 
+                    number: o.number, 
+                    otp: data.code, 
+                    time: new Date().toLocaleTimeString() 
+                  };
+                  setLogs(l => [newLog, ...l].slice(0, 50));
+                  return { ...o, otp: data.code, status: 'SUCCESS' };
+                }
+                return o;
+              }));
+              fetchBalance();
+            }
+          } catch (err) {
+            console.log("Polling error:", err);
           }
-        } catch (err) { console.log("Polling error"); }
-      }
+        });
+        
+        return currentOrders; 
+      });
     }, 5000);
-    return () => clearInterval(pollInterval);
-  }, [activeOrders]);
 
+    return () => clearInterval(pollInterval);
+  }, []); // KOSONGKEUN IEU MEH TIMERNA JALAN TERUS TEU RESET
+  
   // Handle Order (Fixed API Request with Country & Operator)
   const handleOrder = async (qty = 1) => {
     if (isOrdering.current) return;
