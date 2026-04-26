@@ -28,6 +28,15 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Data mapping nagara meh kodena bener ka API
+  const countriesData = [
+    { name: 'Indonesia', code: '6', price: 0.15 },
+    { name: 'Russia', code: '1', price: 0.10 },
+    { name: 'Vietnam', code: '10', price: 0.12 },
+    { name: 'USA', code: '12', price: 0.20 },
+    { name: 'Thailand', code: '22', price: 0.15 }
+  ];
+
   useEffect(() => {
     localStorage.setItem('active_orders', JSON.stringify(activeOrders));
   }, [activeOrders]);
@@ -51,13 +60,14 @@ export default function App() {
 
   useEffect(() => { fetchBalance(); }, []);
 
+  // Timer & Auto-Expire
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveOrders(prev => {
         return prev.map(o => {
           const age = (Date.now() - o.createdAt) / 1000;
           if (!o.otp && age > 120 && o.status === 'WAITING') {
-            fetch(`${API_URL}/cancel-order?id=${o.id}`).catch(e => console.log("Cancel failed"));
+            fetch(`${API_URL}/cancel-order?id=${o.id}`).catch(e => console.log("Auto-cancel failed"));
             return { ...o, status: 'EXPIRED' };
           }
           return o;
@@ -67,6 +77,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Polling OTP (Fixed Logic)
   useEffect(() => {
     const pollInterval = setInterval(async () => {
       const waitingOrders = activeOrders.filter(o => o.status === 'WAITING');
@@ -91,6 +102,7 @@ export default function App() {
     return () => clearInterval(pollInterval);
   }, [activeOrders]);
 
+  // Handle Order (Fixed API Request with Country & Operator)
   const handleOrder = async (qty = 1) => {
     if (isOrdering.current) return;
     isOrdering.current = true;
@@ -99,7 +111,9 @@ export default function App() {
     
     for (let i = 0; i < qty; i++) {
       try {
-        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}`);
+        // Ayeuna ngirim country code jeung operator ka API
+        const operatorParam = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
+        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}${operatorParam}`);
         const data = await res.json();
 
         if (data.status === 'success') {
@@ -113,7 +127,7 @@ export default function App() {
           setActiveOrders(prev => [newOrder, ...prev]);
           navigator.clipboard.writeText(data.number);
           fetchBalance();
-          if (qty > 1) await new Promise(r => setTimeout(r, 700));
+          if (qty > 1) await new Promise(r => setTimeout(r, 1000));
         } else {
           setErrorMsg(`⚠️ ${data.message}`);
           break; 
@@ -181,9 +195,9 @@ export default function App() {
                 </div>
                 
                 <div style={{maxHeight: '120px', overflowY: 'auto'}}>
-                    {['Indonesia', 'Russia', 'Vietnam', 'USA', 'Thailand'].filter(n => n.toLowerCase().includes(searchTerm.toLowerCase())).map(n => (
-                    <div key={n} className={`list-item ${selectedCountry.name === n ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setSelectedCountry({name: n, code: n === 'Indonesia' ? '6' : '1', price: 0.15}); }}>
-                        <span>{n}</span><span className="text-blue">$0.15</span>
+                    {countriesData.filter(n => n.name.toLowerCase().includes(searchTerm.toLowerCase())).map(n => (
+                    <div key={n.name} className={`list-item ${selectedCountry.name === n.name ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setSelectedCountry(n); }}>
+                        <span>{n.name}</span><span className="text-blue">${n.price}</span>
                     </div>
                     ))}
                 </div>
