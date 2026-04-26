@@ -3,7 +3,7 @@ import './App.css';
 import { Zap, Smartphone, Search, Copy, Trash2, History, Wallet, RefreshCw, CheckCircle } from 'lucide-react';
 
 // Siapkeun URL API pikeun deployment
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5678';
+const API_URL = import.meta.env.VITE_API_URL || 'https://wildanrobians29-otp-gateway-api.hf.space';
 
 export default function App() {
   const [activeMenu, setActiveMenu] = useState('dashboard');
