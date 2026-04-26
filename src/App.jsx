@@ -1,34 +1,36 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
-import { Zap, Smartphone, Search, Copy, Trash2, History, Wallet, RefreshCw, CheckCircle } from 'lucide-react';
+import { Zap, Smartphone, Search, Copy, Trash2, History, Wallet, RefreshCw, CheckCircle, Lock, User, LogOut } from 'lucide-react';
 
-// Siapkeun URL API pikeun deployment
 const API_URL = import.meta.env.VITE_API_URL || 'https://wildanrobians29-otp-gateway-api.hf.space';
 
+// AMBIL PASSWORD TINA ENV (HF SECRETS)
+const USERS_DB = {
+  "admin1": import.meta.env.VITE_ADMIN_ROOT1,
+  "admin2": import.meta.env.VITE_ADMIN_ROOT2
+};
+
 export default function App() {
+  // --- STATE LOGIN ---
+  const [user, setUser] = useState(() => localStorage.getItem('logged_user') || '');
+  const [credentials, setCredentials] = useState({ username: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+
+  // --- STATE DASHBOARD UTAMA ---
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [balance, setBalance] = useState(0); 
   const [selectedCountry, setSelectedCountry] = useState({ name: 'Indonesia', code: '6', price: 0.15 });
   const [selectedProvider, setSelectedProvider] = useState('Any');
   const [searchTerm, setSearchTerm] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  
   const [isLoading, setIsLoading] = useState(false);
   const [isOrderingState, setIsOrderingState] = useState(false);
-  
   const isOrdering = useRef(false);
 
-  const [activeOrders, setActiveOrders] = useState(() => {
-    const saved = localStorage.getItem('active_orders');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // --- DATA DASHBOARD (DIPISAH PER USER) ---
+  const [activeOrders, setActiveOrders] = useState([]);
+  const [logs, setLogs] = useState([]);
 
-  const [logs, setLogs] = useState(() => {
-    const saved = localStorage.getItem('activity_logs');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  // Data mapping nagara meh kodena bener ka API
   const countriesData = [
     { name: 'Indonesia', code: '6', price: 0.15 },
     { name: 'Russia', code: '1', price: 0.10 },
@@ -37,13 +39,44 @@ export default function App() {
     { name: 'Thailand', code: '22', price: 0.15 }
   ];
 
+  // 1. LOAD DATA PER USER
   useEffect(() => {
-    localStorage.setItem('active_orders', JSON.stringify(activeOrders));
-  }, [activeOrders]);
+    if (user) {
+      const savedOrders = localStorage.getItem(`orders_${user}`);
+      const savedLogs = localStorage.getItem(`logs_${user}`);
+      setActiveOrders(savedOrders ? JSON.parse(savedOrders) : []);
+      setLogs(savedLogs ? JSON.parse(savedLogs) : []);
+      fetchBalance();
+    }
+  }, [user]);
+
+  // 2. SAVE DATA PER USER
+  useEffect(() => {
+    if (user) localStorage.setItem(`orders_${user}`, JSON.stringify(activeOrders));
+  }, [activeOrders, user]);
 
   useEffect(() => {
-    localStorage.setItem('activity_logs', JSON.stringify(logs));
-  }, [logs]);
+    if (user) localStorage.setItem(`logs_${user}`, JSON.stringify(logs));
+  }, [logs, user]);
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const { username, password } = credentials;
+    const lowerUser = username.toLowerCase();
+    if (USERS_DB[lowerUser] && USERS_DB[lowerUser] === password) {
+      localStorage.setItem('logged_user', lowerUser);
+      setUser(lowerUser);
+      setLoginError('');
+    } else {
+      setLoginError('❌ Username atawa Password salah!');
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('logged_user');
+    setUser('');
+    setCredentials({ username: '', password: '' });
+  };
 
   const fetchBalance = async () => {
     setIsLoading(true);
@@ -51,23 +84,19 @@ export default function App() {
       const res = await fetch(`${API_URL}/get-balance`);
       const data = await res.json();
       if (data.status === 'success') setBalance(parseFloat(data.balance));
-    } catch (err) { 
-      console.log("Balance offline"); 
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (err) { console.log("Balance offline"); }
+    finally { setIsLoading(false); }
   };
-
-  useEffect(() => { fetchBalance(); }, []);
 
   // Timer & Auto-Expire
   useEffect(() => {
+    if (!user) return;
     const interval = setInterval(() => {
       setActiveOrders(prev => {
         return prev.map(o => {
           const age = (Date.now() - o.createdAt) / 1000;
           if (!o.otp && age > 300 && o.status === 'WAITING') {
-            fetch(`${API_URL}/cancel-order?id=${o.id}`).catch(e => console.log("Auto-cancel failed"));
+            fetch(`${API_URL}/cancel-order?id=${o.id}`).catch(e => {});
             return { ...o, status: 'EXPIRED' };
           }
           return o;
@@ -75,30 +104,22 @@ export default function App() {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
-// Polling OTP (Ganti ka versi ieu meh stabil)
+  // Polling OTP (Stabil)
   useEffect(() => {
+    if (!user) return;
     const pollInterval = setInterval(async () => {
-      // Urang filter heula order nu statusna WAITING
-      // Tapi urang teu make dependency [activeOrders] meh intervalna teu keuna reset
       setActiveOrders(currentOrders => {
         const waitingOrders = currentOrders.filter(o => o.status === 'WAITING');
-        
         waitingOrders.forEach(async (order) => {
           try {
             const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
             const data = await res.json();
-            
-            // Backend Hugging Face maneh méré "SUCCESS" (Huruf Gede)
             if (data.status === 'SUCCESS') {
               setActiveOrders(prev => prev.map(o => {
                 if (o.id === order.id) {
-                  const newLog = { 
-                    number: o.number, 
-                    otp: data.code, 
-                    time: new Date().toLocaleTimeString() 
-                  };
+                  const newLog = { number: o.number, otp: data.code, time: new Date().toLocaleTimeString() };
                   setLogs(l => [newLog, ...l].slice(0, 50));
                   return { ...o, otp: data.code, status: 'SUCCESS' };
                 }
@@ -106,52 +127,34 @@ export default function App() {
               }));
               fetchBalance();
             }
-          } catch (err) {
-            console.log("Polling error:", err);
-          }
+          } catch (err) { console.log("Poll error"); }
         });
-        
         return currentOrders; 
       });
     }, 5000);
-
     return () => clearInterval(pollInterval);
-  }, []); // KOSONGKEUN IEU MEH TIMERNA JALAN TERUS TEU RESET
-  
-  // Handle Order (Fixed API Request with Country & Operator)
+  }, [user]);
+
   const handleOrder = async (qty = 1) => {
     if (isOrdering.current) return;
     isOrdering.current = true;
     setIsOrderingState(true); 
     setErrorMsg('');
-    
     for (let i = 0; i < qty; i++) {
       try {
-        // Ayeuna ngirim country code jeung operator ka API
-        const operatorParam = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
-        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}${operatorParam}`);
+        const opParam = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
+        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}${opParam}`);
         const data = await res.json();
-
         if (data.status === 'success') {
-          const newOrder = {
-            id: data.id,
-            number: data.number,
-            otp: null,
-            status: 'WAITING',
-            createdAt: Date.now()
-          };
+          const newOrder = { id: data.id, number: data.number, otp: null, status: 'WAITING', createdAt: Date.now() };
           setActiveOrders(prev => [newOrder, ...prev]);
-          navigator.clipboard.writeText(data.number);
           fetchBalance();
           if (qty > 1) await new Promise(r => setTimeout(r, 1000));
         } else {
           setErrorMsg(`⚠️ ${data.message}`);
           break; 
         }
-      } catch (err) {
-        setErrorMsg("⚠️ BACKEND ERROR!");
-        break;
-      }
+      } catch (err) { setErrorMsg("⚠️ BACKEND ERROR!"); break; }
     }
     setIsOrderingState(false);
     isOrdering.current = false;
@@ -167,22 +170,49 @@ export default function App() {
 
   const copy = (txt) => { if (txt) navigator.clipboard.writeText(txt); };
 
+  // --- HALAMAN LOGIN ---
+  if (!user) {
+    return (
+      <div className="login-screen">
+        <div className="login-box">
+          <Zap size={48} className="text-blue" fill="currentColor" style={{marginBottom: '10px'}}/>
+          <h2> E X I L L E 9</h2>
+          <form onSubmit={handleLogin}>
+            <div className="input-group">
+              <User size={16}/><input type="text" placeholder="Username" onChange={(e) => setCredentials({...credentials, username: e.target.value})} required />
+            </div>
+            <div className="input-group">
+              <Lock size={16}/><input type="password" placeholder="Password" onChange={(e) => setCredentials({...credentials, password: e.target.value})} required />
+            </div>
+            {loginError && <div className="login-error">{loginError}</div>}
+            <button type="submit" className="btn-login">LOGIN SYSTEM</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // --- HALAMAN DASHBOARD (STRUKTUR TEU BERUBAH) ---
   return (
     <div className="app-container">
       <aside className="sidebar">
-        <div className="sidebar-logo"><Zap size={16} className="text-blue" fill="currentColor"/> HERO-OTP</div>
+        <div className="sidebar-logo"><Zap size={16} className="text-blue" fill="currentColor"/> E X I L L E 9</div>
+        <div className="user-profile-badge">
+          <div className="avatar">{user[0].toUpperCase()}</div>
+          <span>{user.toUpperCase()}</span>
+        </div>
         <nav style={{flex: 1}}>
           <div className={`list-item ${activeMenu === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveMenu('dashboard')}><Smartphone size={14}/> Dashboard</div>
           <div className={`list-item ${activeMenu === 'history' ? 'active' : ''}`} onClick={() => setActiveMenu('history')}><History size={14}/> History</div>
-          <div className={`list-item ${activeMenu === 'billing' ? 'active' : ''}`} onClick={() => setActiveMenu('billing')}><Wallet size={14}/> Billing</div>
         </nav>
+        <div className="logout-btn" onClick={handleLogout}><LogOut size={14}/> Logout</div>
       </aside>
 
       <main className="main-content">
         <header className="header-top">
           <div className="status-bar">
-            <span>STATUS: <b className="text-green">ONLINE</b></span>
-            <button onClick={(e) => { e.stopPropagation(); fetchBalance(); }} className="refresh-btn-small" style={{background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'}}>
+            <span>USER: <b className="text-blue">{user.toUpperCase()}</b></span>
+            <button onClick={fetchBalance} className="refresh-btn-small">
               <RefreshCw size={10} className={isLoading ? 'animate-spin' : ''}/> REFRESH
             </button>
           </div>
@@ -197,10 +227,11 @@ export default function App() {
             <div className="panel-card">
               <div className="panel-header">Settings</div>
               <div className="scroll-area">
+                {/* ... (Isi Settings tetap sama seperti kode Anda) ... */}
                 <div style={{fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px'}}>PROVIDER</div>
                 <div className="provider-grid">
                   {['Any', 'Telkomsel', 'Indosat', 'XL', 'Axis', 'Three', 'Smartfren'].map(p => (
-                    <button key={p} className={`provider-btn ${selectedProvider === p ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setSelectedProvider(p); }}>{p}</button>
+                    <button key={p} className={`provider-btn ${selectedProvider === p ? 'active' : ''}`} onClick={() => setSelectedProvider(p)}>{p}</button>
                   ))}
                 </div>
                 
@@ -212,34 +243,14 @@ export default function App() {
                 
                 <div style={{maxHeight: '120px', overflowY: 'auto'}}>
                     {countriesData.filter(n => n.name.toLowerCase().includes(searchTerm.toLowerCase())).map(n => (
-                    <div key={n.name} className={`list-item ${selectedCountry.name === n.name ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setSelectedCountry(n); }}>
+                    <div key={n.name} className={`list-item ${selectedCountry.name === n.name ? 'active' : ''}`} onClick={() => setSelectedCountry(n)}>
                         <span>{n.name}</span><span className="text-blue">${n.price}</span>
                     </div>
                     ))}
                 </div>
 
-                <button 
-                  disabled={isOrderingState} 
-                  className="btn-order-single"
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    handleOrder(1); 
-                  }}
-                >
-                  + ORDER 1 NUMBER
-                </button>
-
-                <button 
-                  disabled={isOrderingState} 
-                  className="btn-order-mass"
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    handleOrder(5); 
-                  }}
-                >
-                  🚀 MASS ORDER 5X
-                </button>
-                
+                <button disabled={isOrderingState} className="btn-order-single" onClick={() => handleOrder(1)}>+ ORDER 1 NUMBER</button>
+                <button disabled={isOrderingState} className="btn-order-mass" onClick={() => handleOrder(5)}>🚀 MASS ORDER 5X</button>
                 {errorMsg && <div className="error-notif">{errorMsg}</div>}
               </div>
             </div>
@@ -267,8 +278,8 @@ export default function App() {
                         {o.otp ? <div className="otp-badge">{o.otp}</div> : o.status === 'EXPIRED' ? <RefreshCw size={12} style={{opacity: 0.2}}/> : <RefreshCw size={14} className="animate-spin text-blue"/>}
                       </div>
                       <div style={{display: 'flex', gap: '4px'}}>
-                        <button onClick={(e) => { e.stopPropagation(); copy(o.otp || o.number); }} className="btn-icon"><Copy size={12}/></button>
-                        <button onClick={(e) => { e.stopPropagation(); handleCancel(o.id); }} className="btn-icon text-red"><Trash2 size={12}/></button>
+                        <button onClick={() => copy(o.otp || o.number)} className="btn-icon"><Copy size={12}/></button>
+                        <button onClick={() => handleCancel(o.id)} className="btn-icon text-red"><Trash2 size={12}/></button>
                       </div>
                     </div>
                   );
