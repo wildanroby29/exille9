@@ -232,7 +232,7 @@ export default function App() {
               <div className="panel-header">Live Monitor ({activeOrders.length})</div>
               <div className="scroll-area">
                 {activeOrders.map(o => {
-                  const timeLeft = Math.max(0, Math.floor(120 - (Date.now() - o.createdAt) / 1000));
+                  const timeLeft = Math.max(0, Math.floor(300 - (Date.now() - o.createdAt) / 1000));
                   return (
                     <div key={o.id} className="number-slot" style={{borderColor: o.status === 'EXPIRED' ? '#450a0a' : o.otp ? '#059669' : '#232d42'}}>
                       <div style={{ flex: 1 }}>
