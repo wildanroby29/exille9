@@ -75,12 +75,11 @@ body, html, #root {
 .animate-spin { animation: spin 1s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
-/* --- 5. MODERN WEB APP MOBILE (MODERN & CLEAN) --- */
+/* --- MODERN WEB APP MOBILE (PERBAIKAN PILIH NEGARA) --- */
 @media (max-width: 768px) {
-  /* Buka scroll tapi tetep smooth */
   body, html, #root, .app-container { overflow-y: auto !important; height: auto !important; }
 
-  /* Bottom Navigation - Gaya App Modern */
+  /* Bottom Navigation */
   .sidebar {
     position: fixed; bottom: 0; left: 0; 
     width: 100% !important; height: 65px !important;
@@ -92,8 +91,8 @@ body, html, #root {
   .list-item { flex: 1; justify-content: center; align-items: center; padding: 10px; border-left: none !important; }
   .list-item.active { border-bottom: 3px solid #2563eb; background: none; }
 
-  /* Layout ka handap (Numpuk) */
-  .main-content { padding-bottom: 80px; } /* Spasi jang Bottom Nav */
+  /* Layout Numpuk ka Handap */
+  .main-content { padding-bottom: 80px; } 
   .header-top { position: sticky; top: 0; z-index: 100; }
   
   .dashboard-wrapper {
@@ -105,9 +104,40 @@ body, html, #root {
     width: 100% !important; 
     min-height: auto !important; 
     border-radius: 12px;
+    overflow: visible !important; /* Meh teu nyumput eusina */
   }
-  .scroll-area { overflow-y: visible !important; height: auto !important; padding: 15px; }
 
-  /* Tombol leuwih badag jang jempol */
-  .btn-order-single, .btn-order-mass { padding: 15px; font-size: 12px; border-radius: 10px; }
+  /* --- FIX PILIH NEGARA & PROVIDER --- */
+  .scroll-area { 
+    overflow-y: visible !important; 
+    height: auto !important; 
+    padding: 15px; 
+  }
+
+  .provider-grid { 
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important; /* Tetep 3 kolom meh rapih */
+    gap: 8px !important; 
+    margin-top: 10px;
+    overflow: visible !important;
+  }
+
+  .provider-btn {
+    padding: 12px 5px !important; /* Ngabadagkeun tombol meh gampang diklik */
+    font-size: 11px !important;
+    height: auto !important;
+  }
+
+  .search-input-custom {
+    padding: 12px 12px 12px 35px !important; /* Input leuwih jangkung */
+    font-size: 14px !important; /* Standar mobile meh teu auto-zoom */
+  }
+
+  /* Tombol Order */
+  .btn-order-single, .btn-order-mass { 
+    padding: 18px !important; 
+    font-size: 14px !important; 
+    border-radius: 10px; 
+    margin-top: 15px;
+  }
 }
