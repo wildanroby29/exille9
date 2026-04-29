@@ -13,7 +13,8 @@ export default function App() {
   // --- 2. STATE DASHBOARD UTAMA ---
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [balance, setBalance] = useState(0); 
-  const [selectedCountry, setSelectedCountry] = useState({ name: 'Indonesia', code: '6', price: 0.15 });
+  const [livePrices, setLivePrices] = useState([]); // State untuk harga asli dari API
+  const [selectedCountry, setSelectedCountry] = useState({ code: '6', price: 0 });
   const [selectedProvider, setSelectedProvider] = useState('Any');
   const [searchTerm, setSearchTerm] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -25,34 +26,28 @@ export default function App() {
   const [activeOrders, setActiveOrders] = useState([]);
   const [logs, setLogs] = useState([]);
 
-  const countriesData = [
-    { name: 'Indonesia', code: '6', price: 0.15 },
-    { name: 'Russia', code: '1', price: 0.10 },
-    { name: 'Vietnam', code: '10', price: 0.12 },
-    { name: 'USA', code: '12', price: 0.20 },
-    { name: 'Thailand', code: '22', price: 0.15 }
-  ];
-
-  // --- 4. LOGIC LOGIN & LOGOUT (HARDCODED) ---
-  const handleLogin = (e) => {
+  // --- 4. LOGIC LOGIN & LOGOUT (API BASED) ---
+  const handleLogin = async (e) => {
     e.preventDefault();
-    const u = credentials.username.trim().toLowerCase();
-    const p = credentials.password.trim();
-
-    // TUNDA PASSWORD MANEH DI DIEU, DAN!
-    const PASS_ADMIN_1 = "admin123"; 
-    const PASS_ADMIN_2 = "admin123";
-
-    if (u === "admin1" && p === PASS_ADMIN_1) {
-      localStorage.setItem('logged_user', u);
-      setUser(u);
-      setLoginError('');
-    } else if (u === "admin2" && p === PASS_ADMIN_2) {
-      localStorage.setItem('logged_user', u);
-      setUser(u);
-      setLoginError('');
-    } else {
-      setLoginError('❌ Username atawa Password salah!');
+    setLoginError('');
+    try {
+        const res = await fetch(`${API_URL}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                username: credentials.username.trim(), 
+                password: credentials.password.trim() 
+            })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            localStorage.setItem('logged_user', data.user.username);
+            setUser(data.user.username);
+        } else {
+            setLoginError('❌ Username atau Password salah!');
+        }
+    } catch (err) {
+        setLoginError('❌ Server Error! Pastikan Backend Aktif.');
     }
   };
   
@@ -70,6 +65,7 @@ export default function App() {
       setActiveOrders(savedOrders ? JSON.parse(savedOrders) : []);
       setLogs(savedLogs ? JSON.parse(savedLogs) : []);
       fetchBalance();
+      fetchRealPrices(); // Ambil harga negara saat login
     }
   }, [user]);
 
@@ -83,13 +79,29 @@ export default function App() {
 
   // --- 6. API ACTIONS ---
   const fetchBalance = async () => {
+    if (!user) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/get-balance`);
+      const res = await fetch(`${API_URL}/get-user-balance?username=${user}`);
       const data = await res.json();
       if (data.status === 'success') setBalance(parseFloat(data.balance));
     } catch (err) { console.log("Balance offline"); }
     finally { setIsLoading(false); }
+  };
+
+  const fetchRealPrices = async () => {
+    try {
+      const res = await fetch(`${API_URL}/get-real-prices`);
+      const data = await res.json();
+      if (data.status === 'success') {
+        setLivePrices(data.prices);
+        // Set default selection kalau belum ada
+        if (!selectedCountry.price && data.prices.length > 0) {
+            const indo = data.prices.find(p => p.code === '6') || data.prices[0];
+            setSelectedCountry({ code: indo.code, price: indo.priceIdr });
+        }
+      }
+    } catch (err) { console.log("Gagal ambil harga"); }
   };
 
   const handleOrder = async (qty = 1) => {
@@ -100,7 +112,8 @@ export default function App() {
     for (let i = 0; i < qty; i++) {
       try {
         const opParam = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
-        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}${opParam}`);
+        // Tambahkan &username dan &price agar backend bisa potong saldo dengan akurat
+        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${selectedCountry.price}${opParam}`);
         const data = await res.json();
         if (data.status === 'success') {
           const newOrder = { id: data.id, number: data.number, otp: null, status: 'WAITING', createdAt: Date.now() };
@@ -164,6 +177,10 @@ export default function App() {
 
   const copy = (txt) => { if (txt) navigator.clipboard.writeText(txt); };
 
+  const formatIDR = (num) => {
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
+  };
+
   // --- 7. RENDER: LOGIN SCREEN ---
   if (!user) {
     return (
@@ -206,13 +223,13 @@ export default function App() {
         <header className="header-top">
           <div className="status-bar">
             <span>USER: <b className="text-blue">{user.toUpperCase()}</b></span>
-            <button onClick={fetchBalance} className="refresh-btn-small" style={{background:'none', border:'none', color:'#64748b', cursor:'pointer', fontSize:'10px'}}>
+            <button onClick={() => { fetchBalance(); fetchRealPrices(); }} className="refresh-btn-small" style={{background:'none', border:'none', color:'#64748b', cursor:'pointer', fontSize:'10px'}}>
               <RefreshCw size={10} className={isLoading ? 'animate-spin' : ''}/> REFRESH
             </button>
           </div>
           <div className="balance-box" style={{textAlign: 'right'}}>
-            <div style={{fontSize: '9px', color: '#64748b'}}>SALDO API</div>
-            <div className="balance-amt">${balance.toFixed(2)}</div>
+            <div style={{fontSize: '9px', color: '#64748b'}}>SALDO USER (IDR)</div>
+            <div className="balance-amt">{formatIDR(balance)}</div>
           </div>
         </header>
 
@@ -228,22 +245,22 @@ export default function App() {
                   ))}
                 </div>
                 
-                <div style={{fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginTop: '15px', marginBottom: '5px'}}>COUNTRY</div>
+                <div style={{fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginTop: '15px', marginBottom: '5px'}}>COUNTRY (LIVE PRICES)</div>
                 <div style={{position: 'relative', marginBottom: '8px'}}>
                   <Search size={12} style={{position: 'absolute', left: '8px', top: '8px', color: '#64748b'}}/>
-                  <input type="text" placeholder="Search..." className="search-input-custom" onChange={(e) => setSearchTerm(e.target.value)} />
+                  <input type="text" placeholder="Search Country Code..." className="search-input-custom" onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
                 
                 <div style={{maxHeight: '120px', overflowY: 'auto'}}>
-                    {countriesData.filter(n => n.name.toLowerCase().includes(searchTerm.toLowerCase())).map(n => (
-                    <div key={n.name} className={`list-item ${selectedCountry.name === n.name ? 'active' : ''}`} onClick={() => setSelectedCountry(n)}>
-                        <span>{n.name}</span><span className="text-blue">${n.price}</span>
+                    {livePrices.filter(n => n.code.includes(searchTerm)).map(n => (
+                    <div key={n.code} className={`list-item ${selectedCountry.code === n.code ? 'active' : ''}`} onClick={() => setSelectedCountry({code: n.code, price: n.priceIdr})}>
+                        <span>Kode Negara: {n.code}</span><span className="text-blue">{formatIDR(n.priceIdr)}</span>
                     </div>
                     ))}
                 </div>
 
                 <button disabled={isOrderingState} className="btn-order-single" onClick={() => handleOrder(1)}>
-                  {isOrderingState ? 'ORDERING...' : '+ ORDER 1 NUMBER'}
+                  {isOrderingState ? 'ORDERING...' : `+ ORDER 1 NUM (${formatIDR(selectedCountry.price)})`}
                 </button>
                 <button disabled={isOrderingState} className="btn-order-mass" onClick={() => handleOrder(5)}>
                   {isOrderingState ? 'PROCESSING...' : '🚀 MASS ORDER 5X'}
