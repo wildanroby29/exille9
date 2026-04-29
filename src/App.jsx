@@ -75,12 +75,12 @@ const fetchRealPrices = async () => {
       const res = await fetch(`${API_URL}/get-real-prices`);
       const data = await res.json();
       if (data.status === 'success') {
-        // KAMUS NEGARA LENGKAP (Update dari saya)
-        const names = { 
+        // KAMUS NEGARA BERDASARKAN DAFTAR TERBARU BOS
+        const names = {
           "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines",
           "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania",
           "10": "Vietnam", "11": "Kyrgyzstan", "12": "USA", "13": "Israel", "14": "Hong Kong",
-          "15": "Poland", "16": "England", "17": "Madagascar", "18": "Congo", "19": "Nigeria",
+          "15": "Poland", "16": "United Kingdom", "17": "Madagascar", "18": "Congo", "19": "Nigeria",
           "20": "Macau", "21": "Egypt", "22": "India", "23": "Ireland", "24": "Cambodia",
           "25": "Laos", "26": "Haiti", "27": "Ivory Coast", "28": "Gambia", "29": "Serbia",
           "30": "Yemen", "31": "South Africa", "32": "Romania", "33": "Colombia", "34": "Estonia",
@@ -89,7 +89,34 @@ const fetchRealPrices = async () => {
           "45": "Croatia", "46": "Sweden", "47": "Iraq", "48": "Netherlands", "49": "Latvia",
           "50": "Austria", "51": "Belarus", "52": "Thailand", "53": "Saudi Arabia", "54": "Mexico",
           "55": "Taiwan", "56": "Spain", "57": "Iran", "58": "Algeria", "59": "Slovenia",
-          "60": "Senegal", "61": "Turkey", "62": "Sri Lanka", "63": "Peru", "64": "Pakistan"
+          "60": "Bangladesh", "61": "Senegal", "62": "Turkey", "63": "Sri Lanka", "64": "Peru",
+          "66": "Pakistan", "67": "New Zealand", "68": "Guinea", "73": "Brazil", "78": "Portugal",
+          "80": "Chile", "81": "Australia", "82": "Singapore", "83": "Italy", "86": "UAE",
+          "87": "Afghanistan", "88": "South Sudan", "94": "Zimbabwe", "100": "Czech", "102": "Angola",
+          "103": "Finland", "104": "Switzerland", "105": "Qatar", "106": "Libya", "107": "DR Congo",
+          "110": "Dominican Republic", "111": "Armenia", "112": "Sierra Leone", "114": "Moldova",
+          "115": "Oman", "116": "Belgium", "117": "Honduras", "118": "Tajikistan", "119": "Georgia",
+          "120": "Cuba", "121": "Denmark", "122": "Tunisia", "123": "Salvador", "124": "Mongolia",
+          "125": "Nepal", "126": "Hungary", "127": "Bhutan", "128": "Guatemala", "129": "Togo",
+          "131": "Mozambique", "132": "Ethiopia", "133": "Burkina Faso", "135": "Slovenia",
+          "136": "Nicaragua", "138": "Bulgaria", "139": "Mauritius", "141": "Paraguay",
+          "142": "Seychelles", "143": "Suriname", "144": "Zambia", "145": "Mali", "146": "Jamaica",
+          "150": "Papua", "151": "Bosnia", "152": "Liberia", "154": "Turkmenistan", "155": "Bolivia",
+          "156": "Puerto Rico", "157": "Central African Republic", "158": "Somalia", "159": "Albania",
+          "160": "Fiji", "162": "Trinidad and Tobago", "163": "Guyana", "164": "Gabon",
+          "165": "Botswana", "166": "Saint Kitts and Nevis", "167": "Namibia", "168": "Niger",
+          "170": "Norway", "172": "Uganda", "173": "Timor-Leste", "174": "Kuwait", "175": "Swaziland",
+          "176": "Syria", "177": "Panama", "178": "Mauritania", "179": "Jordan", "180": "Barbados",
+          "181": "Burundi", "182": "Benin", "183": "Brunei", "184": "Bahamas", "185": "Belize",
+          "186": "Dominica", "187": "Grenada", "188": "Guinea-Bissau", "189": "Iceland", "190": "Comoros",
+          "191": "Lesotho", "192": "Malawi", "193": "Rwanda", "194": "Slovakia", "195": "Monaco",
+          "196": "Bahrain", "197": "Reunion", "198": "Lebanon", "199": "Uruguay", "200": "Maldives",
+          "201": "Guadeloupe", "202": "French Guiana", "203": "Saint Lucia", "204": "Luxembourg",
+          "205": "Equatorial Guinea", "206": "Djibouti", "207": "Antigua and Barbuda",
+          "208": "Cayman Islands", "209": "Montenegro", "210": "Eritrea", "211": "Sao Tome and Principe",
+          "212": "Aruba", "213": "Montserrat", "214": "North Macedonia", "215": "New Caledonia",
+          "216": "Cape Verde", "217": "Palestine", "218": "Samoa", "219": "Malta", "220": "Gibraltar",
+          "221": "Kosovo", "223": "Cyprus", "224": "Costa Rica", "225": "Sudan"
         };
 
         const formatted = data.prices.map(p => ({ 
@@ -97,7 +124,7 @@ const fetchRealPrices = async () => {
           name: names[p.code] || `Negara ${p.code}` 
         }));
 
-        // LOGIKA: Indonesia (6) wajib nomor satu, sisanya sesuai Abjad
+        // SORTIR: Indonesia Tetap No. 1, Sisanya Sesuai Nama (A-Z)
         const sorted = formatted.sort((a, b) => {
           if (a.code === '6') return -1;
           if (b.code === '6') return 1;
@@ -106,14 +133,14 @@ const fetchRealPrices = async () => {
 
         setLivePrices(sorted);
 
-        // Set default ke Indonesia jika tersedia, kalau tidak ambil yang paling atas
+        // Auto-select Indonesia jika tersedia saat baru load
         const indo = sorted.find(p => p.code === '6') || sorted[0];
-        if (indo) {
+        if (indo && !selectedCountry.price) {
           setSelectedCountry({ code: indo.code, price: indo.priceIdr, name: indo.name });
         }
       }
     } catch (err) { 
-      console.log("Price offline"); 
+      console.log("Gagal memuat harga negara terbaru"); 
     }
   };
   
