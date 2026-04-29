@@ -70,25 +70,53 @@ export default function App() {
     finally { setIsLoading(false); }
   };
 
-  const fetchRealPrices = async () => {
+const fetchRealPrices = async () => {
     try {
       const res = await fetch(`${API_URL}/get-real-prices`);
       const data = await res.json();
       if (data.status === 'success') {
-        const names = { "6": "Indonesia", "1": "Russia", "10": "Vietnam", "12": "USA", "22": "Thailand", "7": "Kazakhstan", "2": "Ukraine" };
-        const formatted = data.prices.map(p => ({ ...p, name: names[p.code] || `Negara ${p.code}` }));
+        // KAMUS NEGARA LENGKAP (Update dari saya)
+        const names = { 
+          "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines",
+          "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania",
+          "10": "Vietnam", "11": "Kyrgyzstan", "12": "USA", "13": "Israel", "14": "Hong Kong",
+          "15": "Poland", "16": "England", "17": "Madagascar", "18": "Congo", "19": "Nigeria",
+          "20": "Macau", "21": "Egypt", "22": "India", "23": "Ireland", "24": "Cambodia",
+          "25": "Laos", "26": "Haiti", "27": "Ivory Coast", "28": "Gambia", "29": "Serbia",
+          "30": "Yemen", "31": "South Africa", "32": "Romania", "33": "Colombia", "34": "Estonia",
+          "35": "Azerbaijan", "36": "Canada", "37": "Morocco", "38": "Ghana", "39": "Argentina",
+          "40": "Uzbekistan", "41": "Cameroon", "42": "Chad", "43": "Germany", "44": "Lithuania",
+          "45": "Croatia", "46": "Sweden", "47": "Iraq", "48": "Netherlands", "49": "Latvia",
+          "50": "Austria", "51": "Belarus", "52": "Thailand", "53": "Saudi Arabia", "54": "Mexico",
+          "55": "Taiwan", "56": "Spain", "57": "Iran", "58": "Algeria", "59": "Slovenia",
+          "60": "Senegal", "61": "Turkey", "62": "Sri Lanka", "63": "Peru", "64": "Pakistan"
+        };
+
+        const formatted = data.prices.map(p => ({ 
+          ...p, 
+          name: names[p.code] || `Negara ${p.code}` 
+        }));
+
+        // LOGIKA: Indonesia (6) wajib nomor satu, sisanya sesuai Abjad
         const sorted = formatted.sort((a, b) => {
           if (a.code === '6') return -1;
           if (b.code === '6') return 1;
           return a.name.localeCompare(b.name);
         });
-        setLivePrices(sorted);
-        const indo = sorted.find(p => p.code === '6') || sorted[0];
-        setSelectedCountry({ code: indo.code, price: indo.priceIdr, name: indo.name });
-      }
-    } catch (err) { console.log("Price offline"); }
-  };
 
+        setLivePrices(sorted);
+
+        // Set default ke Indonesia jika tersedia, kalau tidak ambil yang paling atas
+        const indo = sorted.find(p => p.code === '6') || sorted[0];
+        if (indo) {
+          setSelectedCountry({ code: indo.code, price: indo.priceIdr, name: indo.name });
+        }
+      }
+    } catch (err) { 
+      console.log("Price offline"); 
+    }
+  };
+  
   const handleOrder = async (qty = 1) => {
     if (isOrdering.current) return;
     isOrdering.current = true;
