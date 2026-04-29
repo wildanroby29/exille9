@@ -5,28 +5,22 @@ import { Zap, Smartphone, Search, Copy, Trash2, History, Wallet, RefreshCw, Chec
 const API_URL = import.meta.env.VITE_API_URL || 'https://wildanrobians29-otp-gateway-api.hf.space';
 
 export default function App() {
-  // --- 1. STATE LOGIN & AUTH ---
   const [user, setUser] = useState(() => localStorage.getItem('logged_user') || '');
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
-
-  // --- 2. STATE DASHBOARD UTAMA ---
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [balance, setBalance] = useState(0); 
-  const [livePrices, setLivePrices] = useState([]); // State untuk harga asli dari API
-  const [selectedCountry, setSelectedCountry] = useState({ code: '6', price: 0 });
+  const [livePrices, setLivePrices] = useState([]);
+  const [selectedCountry, setSelectedCountry] = useState({ code: '6', price: 0, name: 'Indonesia' });
   const [selectedProvider, setSelectedProvider] = useState('Any');
   const [searchTerm, setSearchTerm] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isOrderingState, setIsOrderingState] = useState(false);
   const isOrdering = useRef(false);
-
-  // --- 3. DATA PER USER (ORDERS & LOGS) ---
   const [activeOrders, setActiveOrders] = useState([]);
   const [logs, setLogs] = useState([]);
 
-  // --- 4. LOGIC LOGIN & LOGOUT (API BASED) ---
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -35,7 +29,7 @@ export default function App() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-                username: credentials.username.trim(), 
+                username: credentials.username.trim().toLowerCase(), 
                 password: credentials.password.trim() 
             })
         });
@@ -43,12 +37,8 @@ export default function App() {
         if (data.status === 'success') {
             localStorage.setItem('logged_user', data.user.username);
             setUser(data.user.username);
-        } else {
-            setLoginError('❌ Username atau Password salah!');
-        }
-    } catch (err) {
-        setLoginError('❌ Server Error! Pastikan Backend Aktif.');
-    }
+        } else { setLoginError('❌ Username atau Password salah!'); }
+    } catch (err) { setLoginError('❌ Server Error!'); }
   };
   
   const handleLogout = () => {
@@ -57,27 +47,18 @@ export default function App() {
     setCredentials({ username: '', password: '' });
   };
 
-  // --- 5. EFFECT: LOAD & SAVE DATA PER USER ---
   useEffect(() => {
     if (user) {
-      const savedOrders = localStorage.getItem(`orders_${user}`);
-      const savedLogs = localStorage.getItem(`logs_${user}`);
-      setActiveOrders(savedOrders ? JSON.parse(savedOrders) : []);
-      setLogs(savedLogs ? JSON.parse(savedLogs) : []);
+      setActiveOrders(JSON.parse(localStorage.getItem(`orders_${user}`)) || []);
+      setLogs(JSON.parse(localStorage.getItem(`logs_${user}`)) || []);
       fetchBalance();
-      fetchRealPrices(); // Ambil harga negara saat login
+      fetchRealPrices();
     }
   }, [user]);
 
-  useEffect(() => {
-    if (user) localStorage.setItem(`orders_${user}`, JSON.stringify(activeOrders));
-  }, [activeOrders, user]);
+  useEffect(() => { if (user) localStorage.setItem(`orders_${user}`, JSON.stringify(activeOrders)); }, [activeOrders, user]);
+  useEffect(() => { if (user) localStorage.setItem(`logs_${user}`, JSON.stringify(logs)); }, [logs, user]);
 
-  useEffect(() => {
-    if (user) localStorage.setItem(`logs_${user}`, JSON.stringify(logs));
-  }, [logs, user]);
-
-  // --- 6. API ACTIONS ---
   const fetchBalance = async () => {
     if (!user) return;
     setIsLoading(true);
@@ -94,14 +75,18 @@ export default function App() {
       const res = await fetch(`${API_URL}/get-real-prices`);
       const data = await res.json();
       if (data.status === 'success') {
-        setLivePrices(data.prices);
-        // Set default selection kalau belum ada
-        if (!selectedCountry.price && data.prices.length > 0) {
-            const indo = data.prices.find(p => p.code === '6') || data.prices[0];
-            setSelectedCountry({ code: indo.code, price: indo.priceIdr });
-        }
+        const names = { "6": "Indonesia", "1": "Russia", "10": "Vietnam", "12": "USA", "22": "Thailand", "7": "Kazakhstan", "2": "Ukraine" };
+        const formatted = data.prices.map(p => ({ ...p, name: names[p.code] || `Negara ${p.code}` }));
+        const sorted = formatted.sort((a, b) => {
+          if (a.code === '6') return -1;
+          if (b.code === '6') return 1;
+          return a.name.localeCompare(b.name);
+        });
+        setLivePrices(sorted);
+        const indo = sorted.find(p => p.code === '6') || sorted[0];
+        setSelectedCountry({ code: indo.code, price: indo.priceIdr, name: indo.name });
       }
-    } catch (err) { console.log("Gagal ambil harga"); }
+    } catch (err) { console.log("Price offline"); }
   };
 
   const handleOrder = async (qty = 1) => {
@@ -111,20 +96,15 @@ export default function App() {
     setErrorMsg('');
     for (let i = 0; i < qty; i++) {
       try {
-        const opParam = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
-        // Tambahkan &username dan &price agar backend bisa potong saldo dengan akurat
-        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${selectedCountry.price}${opParam}`);
+        const op = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
+        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${selectedCountry.price}${op}`);
         const data = await res.json();
         if (data.status === 'success') {
-          const newOrder = { id: data.id, number: data.number, otp: null, status: 'WAITING', createdAt: Date.now() };
-          setActiveOrders(prev => [newOrder, ...prev]);
+          setActiveOrders(prev => [{ id: data.id, number: data.number, otp: null, status: 'WAITING', createdAt: Date.now() }, ...prev]);
           fetchBalance();
           if (qty > 1) await new Promise(r => setTimeout(r, 1000));
-        } else {
-          setErrorMsg(`⚠️ ${data.message}`);
-          break; 
-        }
-      } catch (err) { setErrorMsg("⚠️ BACKEND ERROR!"); break; }
+        } else { setErrorMsg(`⚠️ ${data.message}`); break; }
+      } catch (err) { setErrorMsg("⚠️ ERROR!"); break; }
     }
     setIsOrderingState(false);
     isOrdering.current = false;
@@ -135,38 +115,26 @@ export default function App() {
       await fetch(`${API_URL}/cancel-order?id=${id}`);
       setActiveOrders(prev => prev.filter(x => x.id !== id));
       fetchBalance();
-    } catch (err) { console.log("Cancel failed"); }
+    } catch (e) {}
   };
 
-  // Polling OTP & Expire Timer
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(async () => {
-      // 1. Cék Expired
       setActiveOrders(prev => prev.map(o => {
-        const age = (Date.now() - o.createdAt) / 1000;
-        if (!o.otp && age > 300 && o.status === 'WAITING') {
+        if (!o.otp && (Date.now() - o.createdAt) / 1000 > 300 && o.status === 'WAITING') {
           fetch(`${API_URL}/cancel-order?id=${o.id}`).catch(() => {});
           return { ...o, status: 'EXPIRED' };
         }
         return o;
       }));
-
-      // 2. Polling OTP
-      const waiting = activeOrders.filter(o => o.status === 'WAITING');
-      waiting.forEach(async (order) => {
+      activeOrders.filter(o => o.status === 'WAITING').forEach(async (order) => {
         try {
           const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
           const data = await res.json();
           if (data.status === 'SUCCESS') {
-            setActiveOrders(prev => prev.map(o => {
-              if (o.id === order.id) {
-                const newLog = { number: o.number, otp: data.code, time: new Date().toLocaleTimeString() };
-                setLogs(l => [newLog, ...l].slice(0, 50));
-                return { ...o, otp: data.code, status: 'SUCCESS' };
-              }
-              return o;
-            }));
+            setActiveOrders(prev => prev.map(o => o.id === order.id ? { ...o, otp: data.code, status: 'SUCCESS' } : o));
+            setLogs(l => [{ number: order.number, otp: data.code, time: new Date().toLocaleTimeString() }, ...l].slice(0, 50));
             fetchBalance();
           }
         } catch (e) {}
@@ -175,13 +143,9 @@ export default function App() {
     return () => clearInterval(interval);
   }, [user, activeOrders]);
 
-  const copy = (txt) => { if (txt) navigator.clipboard.writeText(txt); };
+  const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
+  const copy = (t) => { if (t) navigator.clipboard.writeText(t); };
 
-  const formatIDR = (num) => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
-  };
-
-  // --- 7. RENDER: LOGIN SCREEN ---
   if (!user) {
     return (
       <div className="login-screen">
@@ -189,12 +153,8 @@ export default function App() {
           <Zap size={48} className="text-blue" fill="currentColor" style={{marginBottom: '10px'}}/>
           <h2> E X I L L E 9</h2>
           <form onSubmit={handleLogin}>
-            <div className="input-group">
-              <User size={16}/><input type="text" placeholder="Username" value={credentials.username} onChange={(e) => setCredentials({...credentials, username: e.target.value})} required />
-            </div>
-            <div className="input-group">
-              <Lock size={16}/><input type="password" placeholder="Password" value={credentials.password} onChange={(e) => setCredentials({...credentials, password: e.target.value})} required />
-            </div>
+            <div className="input-group"><User size={16}/><input type="text" placeholder="Username" value={credentials.username} onChange={(e) => setCredentials({...credentials, username: e.target.value})} required /></div>
+            <div className="input-group"><Lock size={16}/><input type="password" placeholder="Password" value={credentials.password} onChange={(e) => setCredentials({...credentials, password: e.target.value})} required /></div>
             {loginError && <div className="login-error">{loginError}</div>}
             <button type="submit" className="btn-login">LOGIN SYSTEM</button>
           </form>
@@ -203,15 +163,11 @@ export default function App() {
     );
   }
 
-  // --- 8. RENDER: DASHBOARD ---
   return (
     <div className="app-container">
       <aside className="sidebar">
         <div className="sidebar-logo"><Zap size={16} className="text-blue" fill="currentColor"/> E X I L L E 9</div>
-        <div className="user-profile-badge">
-          <div className="avatar">{user[0].toUpperCase()}</div>
-          <span>{user.toUpperCase()}</span>
-        </div>
+        <div className="user-profile-badge"><div className="avatar">{user[0].toUpperCase()}</div><span>{user.toUpperCase()}</span></div>
         <nav style={{flex: 1}}>
           <div className={`list-item ${activeMenu === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveMenu('dashboard')}><Smartphone size={14}/> Dashboard</div>
           <div className={`list-item ${activeMenu === 'history' ? 'active' : ''}`} onClick={() => setActiveMenu('history')}><History size={14}/> History</div>
@@ -245,16 +201,16 @@ export default function App() {
                   ))}
                 </div>
                 
-                <div style={{fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginTop: '15px', marginBottom: '5px'}}>COUNTRY (LIVE PRICES)</div>
+                <div style={{fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginTop: '15px', marginBottom: '5px'}}>COUNTRY (INDONESIA #1)</div>
                 <div style={{position: 'relative', marginBottom: '8px'}}>
                   <Search size={12} style={{position: 'absolute', left: '8px', top: '8px', color: '#64748b'}}/>
-                  <input type="text" placeholder="Search Country Code..." className="search-input-custom" onChange={(e) => setSearchTerm(e.target.value)} />
+                  <input type="text" placeholder="Cari Nama atau Kode..." className="search-input-custom" onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
                 
                 <div style={{maxHeight: '120px', overflowY: 'auto'}}>
-                    {livePrices.filter(n => n.code.includes(searchTerm)).map(n => (
-                    <div key={n.code} className={`list-item ${selectedCountry.code === n.code ? 'active' : ''}`} onClick={() => setSelectedCountry({code: n.code, price: n.priceIdr})}>
-                        <span>Kode Negara: {n.code}</span><span className="text-blue">{formatIDR(n.priceIdr)}</span>
+                    {livePrices.filter(n => n.name.toLowerCase().includes(searchTerm.toLowerCase()) || n.code.includes(searchTerm)).map(n => (
+                    <div key={n.code} className={`list-item ${selectedCountry.code === n.code ? 'active' : ''}`} onClick={() => setSelectedCountry({code: n.code, price: n.priceIdr, name: n.name})}>
+                        <span>{n.name} ({n.code})</span><span className="text-blue">{formatIDR(n.priceIdr)}</span>
                     </div>
                     ))}
                 </div>
