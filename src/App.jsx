@@ -234,7 +234,9 @@ export default function App() {
                     <div key={o.id} className="number-slot" style={{borderColor: o.status === 'EXPIRED' ? '#450a0a' : o.otp ? '#059669' : '#232d42'}}>
                       <div style={{ flex: 1 }}>
                         <span style={{fontSize:'9px', color:'#64748b'}}>ID: {o.id}</span>
-                        <span className={`slot-num ${o.status === 'EXPIRED' ? 'expired' : ''}`}>{o.number}</span>
+                        <span className={`slot-num ${o.status === 'EXPIRED' ? 'expired' : ''}`}>
+                         {o.number.replace(/^(62|6)/, '')}
+                        </span>
                         {!o.otp && o.status !== 'EXPIRED' && (
                           <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px'}}>
                             <span className="timer-text">{Math.floor(timeLeft/60)}:{String(timeLeft%60).padStart(2,'0')}</span>
@@ -248,7 +250,9 @@ export default function App() {
                         {o.otp ? <div className="otp-badge">{o.otp}</div> : o.status === 'EXPIRED' ? <RefreshCw size={12} style={{opacity: 0.2}}/> : <RefreshCw size={14} className="animate-spin text-blue"/>}
                       </div>
                       <div style={{display: 'flex', gap: '4px'}}>
-                        <button onClick={() => copy(o.otp || o.number)} className="btn-icon"><Copy size={12}/></button>
+                        <button onClick={() => copy(o.otp || o.number.replace(/^(62|6)/, ''))} className="btn-icon">
+                        <Copy size={12}/> 
+                        </button>
                         <button onClick={() => handleCancel(o.id)} className="btn-icon text-red"><Trash2 size={12}/></button>
                       </div>
                     </div>
@@ -266,7 +270,9 @@ export default function App() {
                       <span className="text-green" style={{fontWeight:'bold'}}>SUCCESS</span>
                       <span style={{color: '#64748b'}}>{l.time}</span>
                     </div>
-                    <div style={{color: '#fff', margin: '2px 0'}}>{l.number}</div>
+                    <div style={{color: '#fff', margin: '2px 0'}}>
+                     {l.number.replace(/^(62|6)/, '')}
+                    </div>
                     <div className="text-blue" style={{fontWeight: '900'}}>OTP: {l.otp}</div>
                   </div>
                 ))}
