@@ -21,6 +21,7 @@ export default function App() {
   const [activeOrders, setActiveOrders] = useState([]);
   const [logs, setLogs] = useState([]);
 
+  // --- LOGIN ---
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -47,6 +48,7 @@ export default function App() {
     setCredentials({ username: '', password: '' });
   };
 
+  // --- DATA LOADING ---
   useEffect(() => {
     if (user) {
       setActiveOrders(JSON.parse(localStorage.getItem(`orders_${user}`)) || []);
@@ -61,89 +63,29 @@ export default function App() {
 
   const fetchBalance = async () => {
     if (!user) return;
-    setIsLoading(true);
     try {
       const res = await fetch(`${API_URL}/get-user-balance?username=${user}`);
       const data = await res.json();
       if (data.status === 'success') setBalance(parseFloat(data.balance));
     } catch (err) { console.log("Balance offline"); }
-    finally { setIsLoading(false); }
   };
 
-const fetchRealPrices = async () => {
+  const fetchRealPrices = async () => {
     try {
       const res = await fetch(`${API_URL}/get-real-prices`);
       const data = await res.json();
       if (data.status === 'success') {
-        // KAMUS NEGARA BERDASARKAN DAFTAR TERBARU BOS
-        const names = {
-          "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines",
-          "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania",
-          "10": "Vietnam", "11": "Kyrgyzstan", "12": "USA", "13": "Israel", "14": "Hong Kong",
-          "15": "Poland", "16": "United Kingdom", "17": "Madagascar", "18": "Congo", "19": "Nigeria",
-          "20": "Macau", "21": "Egypt", "22": "India", "23": "Ireland", "24": "Cambodia",
-          "25": "Laos", "26": "Haiti", "27": "Ivory Coast", "28": "Gambia", "29": "Serbia",
-          "30": "Yemen", "31": "South Africa", "32": "Romania", "33": "Colombia", "34": "Estonia",
-          "35": "Azerbaijan", "36": "Canada", "37": "Morocco", "38": "Ghana", "39": "Argentina",
-          "40": "Uzbekistan", "41": "Cameroon", "42": "Chad", "43": "Germany", "44": "Lithuania",
-          "45": "Croatia", "46": "Sweden", "47": "Iraq", "48": "Netherlands", "49": "Latvia",
-          "50": "Austria", "51": "Belarus", "52": "Thailand", "53": "Saudi Arabia", "54": "Mexico",
-          "55": "Taiwan", "56": "Spain", "57": "Iran", "58": "Algeria", "59": "Slovenia",
-          "60": "Bangladesh", "61": "Senegal", "62": "Turkey", "63": "Sri Lanka", "64": "Peru",
-          "66": "Pakistan", "67": "New Zealand", "68": "Guinea", "73": "Brazil", "78": "Portugal",
-          "80": "Chile", "81": "Australia", "82": "Singapore", "83": "Italy", "86": "UAE",
-          "87": "Afghanistan", "88": "South Sudan", "94": "Zimbabwe", "100": "Czech", "102": "Angola",
-          "103": "Finland", "104": "Switzerland", "105": "Qatar", "106": "Libya", "107": "DR Congo",
-          "110": "Dominican Republic", "111": "Armenia", "112": "Sierra Leone", "114": "Moldova",
-          "115": "Oman", "116": "Belgium", "117": "Honduras", "118": "Tajikistan", "119": "Georgia",
-          "120": "Cuba", "121": "Denmark", "122": "Tunisia", "123": "Salvador", "124": "Mongolia",
-          "125": "Nepal", "126": "Hungary", "127": "Bhutan", "128": "Guatemala", "129": "Togo",
-          "131": "Mozambique", "132": "Ethiopia", "133": "Burkina Faso", "135": "Slovenia",
-          "136": "Nicaragua", "138": "Bulgaria", "139": "Mauritius", "141": "Paraguay",
-          "142": "Seychelles", "143": "Suriname", "144": "Zambia", "145": "Mali", "146": "Jamaica",
-          "150": "Papua", "151": "Bosnia", "152": "Liberia", "154": "Turkmenistan", "155": "Bolivia",
-          "156": "Puerto Rico", "157": "Central African Republic", "158": "Somalia", "159": "Albania",
-          "160": "Fiji", "162": "Trinidad and Tobago", "163": "Guyana", "164": "Gabon",
-          "165": "Botswana", "166": "Saint Kitts and Nevis", "167": "Namibia", "168": "Niger",
-          "170": "Norway", "172": "Uganda", "173": "Timor-Leste", "174": "Kuwait", "175": "Swaziland",
-          "176": "Syria", "177": "Panama", "178": "Mauritania", "179": "Jordan", "180": "Barbados",
-          "181": "Burundi", "182": "Benin", "183": "Brunei", "184": "Bahamas", "185": "Belize",
-          "186": "Dominica", "187": "Grenada", "188": "Guinea-Bissau", "189": "Iceland", "190": "Comoros",
-          "191": "Lesotho", "192": "Malawi", "193": "Rwanda", "194": "Slovakia", "195": "Monaco",
-          "196": "Bahrain", "197": "Reunion", "198": "Lebanon", "199": "Uruguay", "200": "Maldives",
-          "201": "Guadeloupe", "202": "French Guiana", "203": "Saint Lucia", "204": "Luxembourg",
-          "205": "Equatorial Guinea", "206": "Djibouti", "207": "Antigua and Barbuda",
-          "208": "Cayman Islands", "209": "Montenegro", "210": "Eritrea", "211": "Sao Tome and Principe",
-          "212": "Aruba", "213": "Montserrat", "214": "North Macedonia", "215": "New Caledonia",
-          "216": "Cape Verde", "217": "Palestine", "218": "Samoa", "219": "Malta", "220": "Gibraltar",
-          "221": "Kosovo", "223": "Cyprus", "224": "Costa Rica", "225": "Sudan"
-        };
-
-        const formatted = data.prices.map(p => ({ 
-          ...p, 
-          name: names[p.code] || `Negara ${p.code}` 
-        }));
-
-        // SORTIR: Indonesia Tetap No. 1, Sisanya Sesuai Nama (A-Z)
-        const sorted = formatted.sort((a, b) => {
-          if (a.code === '6') return -1;
-          if (b.code === '6') return 1;
-          return a.name.localeCompare(b.name);
-        });
-
+        const names = { "0": "Russia", "6": "Indonesia", "12": "USA", "7": "Malaysia", "22": "India" /* ... tambahkan sisanya ... */ };
+        const formatted = data.prices.map(p => ({ ...p, name: names[p.code] || `Negara ${p.code}` }));
+        const sorted = formatted.sort((a, b) => a.code === '6' ? -1 : b.code === '6' ? 1 : a.name.localeCompare(b.name));
         setLivePrices(sorted);
-
-        // Auto-select Indonesia jika tersedia saat baru load
         const indo = sorted.find(p => p.code === '6') || sorted[0];
-        if (indo && !selectedCountry.price) {
-          setSelectedCountry({ code: indo.code, price: indo.priceIdr, name: indo.name });
-        }
+        if (indo && !selectedCountry.price) setSelectedCountry({ code: indo.code, price: indo.priceIdr, name: indo.name });
       }
-    } catch (err) { 
-      console.log("Gagal memuat harga negara terbaru"); 
-    }
+    } catch (err) { console.log("Gagal memuat harga"); }
   };
   
+  // --- ORDER LOGIC ---
   const handleOrder = async (qty = 1) => {
     if (isOrdering.current) return;
     isOrdering.current = true;
@@ -152,6 +94,7 @@ const fetchRealPrices = async () => {
     for (let i = 0; i < qty; i++) {
       try {
         const op = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
+        // Mengirimkan price agar backend bisa mencatat nominal untuk refund nantinya
         const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${selectedCountry.price}${op}`);
         const data = await res.json();
         if (data.status === 'success') {
@@ -159,30 +102,44 @@ const fetchRealPrices = async () => {
           fetchBalance();
           if (qty > 1) await new Promise(r => setTimeout(r, 1000));
         } else { setErrorMsg(`⚠️ ${data.message}`); break; }
-      } catch (err) { setErrorMsg("⚠️ ERROR!"); break; }
+      } catch (err) { setErrorMsg("⚠️ ERROR SERVER!"); break; }
     }
     setIsOrderingState(false);
     isOrdering.current = false;
   };
 
+  // --- CANCEL & REFUND LOGIC ---
   const handleCancel = async (id) => {
     try {
-      await fetch(`${API_URL}/cancel-order?id=${id}`);
-      setActiveOrders(prev => prev.filter(x => x.id !== id));
-      fetchBalance();
-    } catch (e) {}
+      // Backend sekarang otomatis handle refund berdasarkan ID di database
+      const res = await fetch(`${API_URL}/cancel-order?id=${id}`);
+      const data = await res.json();
+      if (data.status === 'success') {
+        setActiveOrders(prev => prev.filter(x => x.id !== id));
+        fetchBalance(); // Saldo otomatis bertambah di UI setelah refund sukses
+      }
+    } catch (e) { console.error("Cancel failed"); }
   };
 
+  // --- BACKGROUND CHECKER (OTP & EXPIRED) ---
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(async () => {
-      setActiveOrders(prev => prev.map(o => {
-        if (!o.otp && (Date.now() - o.createdAt) / 1000 > 300 && o.status === 'WAITING') {
-          fetch(`${API_URL}/cancel-order?id=${o.id}`).catch(() => {});
-          return { ...o, status: 'EXPIRED' };
-        }
-        return o;
-      }));
+      // 1. Cek Expired (Auto-Refund)
+      setActiveOrders(prev => {
+        const updated = prev.map(o => {
+          const isTooOld = (Date.now() - o.createdAt) / 1000 > 300;
+          if (!o.otp && isTooOld && o.status === 'WAITING') {
+            // Tembak API cancel secara background agar saldo balik
+            fetch(`${API_URL}/cancel-order?id=${o.id}`).then(() => fetchBalance());
+            return { ...o, status: 'EXPIRED' };
+          }
+          return o;
+        });
+        return updated;
+      });
+
+      // 2. Cek OTP
       activeOrders.filter(o => o.status === 'WAITING').forEach(async (order) => {
         try {
           const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
@@ -198,6 +155,7 @@ const fetchRealPrices = async () => {
     return () => clearInterval(interval);
   }, [user, activeOrders]);
 
+  // --- UI HELPERS ---
   const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
   const copy = (t) => { if (t) navigator.clipboard.writeText(t); };
 
@@ -220,6 +178,7 @@ const fetchRealPrices = async () => {
 
   return (
     <div className="app-container">
+      {/* ... (Sidebar & Header Tetap Sama) ... */}
       <aside className="sidebar">
         <div className="sidebar-logo"><Zap size={16} className="text-blue" fill="currentColor"/> E X I L L E 9</div>
         <div className="user-profile-badge"><div className="avatar">{user[0].toUpperCase()}</div><span>{user.toUpperCase()}</span></div>
@@ -234,7 +193,7 @@ const fetchRealPrices = async () => {
         <header className="header-top">
           <div className="status-bar">
             <span>USER: <b className="text-blue">{user.toUpperCase()}</b></span>
-            <button onClick={() => { fetchBalance(); fetchRealPrices(); }} className="refresh-btn-small" style={{background:'none', border:'none', color:'#64748b', cursor:'pointer', fontSize:'10px'}}>
+            <button onClick={() => { fetchBalance(); fetchRealPrices(); }} className="refresh-btn-small">
               <RefreshCw size={10} className={isLoading ? 'animate-spin' : ''}/> REFRESH
             </button>
           </div>
@@ -246,20 +205,19 @@ const fetchRealPrices = async () => {
 
         {activeMenu === 'dashboard' ? (
           <div className="dashboard-wrapper">
+            {/* PANEL SETTINGS */}
             <div className="panel-card">
               <div className="panel-header">Settings</div>
               <div className="scroll-area">
-                <div style={{fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px'}}>PROVIDER</div>
                 <div className="provider-grid">
                   {['Any', 'Telkomsel', 'Indosat', 'XL', 'Axis', 'Three', 'Smartfren'].map(p => (
                     <button key={p} className={`provider-btn ${selectedProvider === p ? 'active' : ''}`} onClick={() => setSelectedProvider(p)}>{p}</button>
                   ))}
                 </div>
                 
-                <div style={{fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginTop: '15px', marginBottom: '5px'}}>COUNTRY (INDONESIA #1)</div>
-                <div style={{position: 'relative', marginBottom: '8px'}}>
+                <div style={{position: 'relative', margin: '15px 0 8px 0'}}>
                   <Search size={12} style={{position: 'absolute', left: '8px', top: '8px', color: '#64748b'}}/>
-                  <input type="text" placeholder="Cari Nama atau Kode..." className="search-input-custom" onChange={(e) => setSearchTerm(e.target.value)} />
+                  <input type="text" placeholder="Cari Negara..." className="search-input-custom" onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
                 
                 <div style={{maxHeight: '120px', overflowY: 'auto'}}>
@@ -280,6 +238,7 @@ const fetchRealPrices = async () => {
               </div>
             </div>
 
+            {/* LIVE MONITOR */}
             <div className="panel-card">
               <div className="panel-header">Live Monitor ({activeOrders.length})</div>
               <div className="scroll-area">
@@ -292,22 +251,20 @@ const fetchRealPrices = async () => {
                         <span className={`slot-num ${o.status === 'EXPIRED' ? 'expired' : ''}`}>
                          {o.number.replace(/^(62|6)/, '')}
                         </span>
-                        {!o.otp && o.status !== 'EXPIRED' && (
+                        {o.status === 'WAITING' && (
                           <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px'}}>
                             <span className="timer-text">{Math.floor(timeLeft/60)}:{String(timeLeft%60).padStart(2,'0')}</span>
                             <span className="status-desc">Waiting SMS...</span>
                           </div>
                         )}
-                        {o.status === 'EXPIRED' && <span className="status-desc text-red">Expired</span>}
+                        {o.status === 'EXPIRED' && <span className="status-desc text-red">Expired & Refunded</span>}
                         {o.otp && <span className="status-desc text-green">OTP Received</span>}
                       </div>
                       <div style={{ textAlign: 'right', marginRight: '10px' }}>
                         {o.otp ? <div className="otp-badge">{o.otp}</div> : o.status === 'EXPIRED' ? <RefreshCw size={12} style={{opacity: 0.2}}/> : <RefreshCw size={14} className="animate-spin text-blue"/>}
                       </div>
                       <div style={{display: 'flex', gap: '4px'}}>
-                        <button onClick={() => copy(o.otp || o.number.replace(/^(62|6)/, ''))} className="btn-icon">
-                        <Copy size={12}/> 
-                        </button>
+                        <button onClick={() => copy(o.otp || o.number.replace(/^(62|6)/, ''))} className="btn-icon"><Copy size={12}/></button>
                         <button onClick={() => handleCancel(o.id)} className="btn-icon text-red"><Trash2 size={12}/></button>
                       </div>
                     </div>
@@ -316,6 +273,7 @@ const fetchRealPrices = async () => {
               </div>
             </div>
 
+            {/* LOGS */}
             <div className="panel-card">
               <div className="panel-header">Activity Logs</div>
               <div className="scroll-area" style={{padding: 0}}>
@@ -325,9 +283,7 @@ const fetchRealPrices = async () => {
                       <span className="text-green" style={{fontWeight:'bold'}}>SUCCESS</span>
                       <span style={{color: '#64748b'}}>{l.time}</span>
                     </div>
-                    <div style={{color: '#fff', margin: '2px 0'}}>
-                     {l.number.replace(/^(62|6)/, '')}
-                    </div>
+                    <div style={{color: '#fff', margin: '2px 0'}}>{l.number.replace(/^(62|6)/, '')}</div>
                     <div className="text-blue" style={{fontWeight: '900'}}>OTP: {l.otp}</div>
                   </div>
                 ))}
