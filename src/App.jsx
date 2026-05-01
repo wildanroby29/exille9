@@ -75,7 +75,6 @@ export default function App() {
       const res = await fetch(`${API_URL}/get-real-prices`);
       const data = await res.json();
       if (data.status === 'success') {
-        // --- DAFTAR NEGARA LENGKAP DIMASUKKAN DI SINI ---[cite: 1]
         const names = {
           "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines",
           "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania",
@@ -161,11 +160,16 @@ export default function App() {
     } catch (e) { console.error("Cancel failed"); }
   };
 
-  // --- BACKGROUND CHECKER (OTP & EXPIRED) ---
+  // --- FIX: FUNGSI HAPUS HISTORY ---
+  const clearLogs = () => {
+    setLogs([]);
+    localStorage.removeItem(`logs_${user}`);
+  };
+
+  // --- BACKGROUND CHECKER ---
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(async () => {
-      // 1. Cek Expired (Auto-Refund)
       setActiveOrders(prev => {
         const updated = prev.map(o => {
           const isTooOld = (Date.now() - o.createdAt) / 1000 > 300;
@@ -178,7 +182,6 @@ export default function App() {
         return updated;
       });
 
-      // 2. Cek OTP
       activeOrders.filter(o => o.status === 'WAITING').forEach(async (order) => {
         try {
           const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
@@ -194,7 +197,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [user, activeOrders]);
 
-  // --- UI HELPERS ---
   const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
   const copy = (t) => { if (t) navigator.clipboard.writeText(t); };
 
@@ -327,9 +329,14 @@ export default function App() {
           </div>
         ) : (
           <div style={{padding: '60px', textAlign: 'center'}}>
-            <CheckCircle size={40} style={{marginBottom: '10px', color: '#64748b'}}/>
-            <h3>Menu {activeMenu} is under development</h3>
-            <button className="btn-order-mass" style={{width: 'auto', padding: '10px 20px', marginTop: '20px'}} onClick={() => setActiveMenu('dashboard')}>Back to Dashboard</button>
+            <History size={40} style={{marginBottom: '10px', color: '#64748b'}}/>
+            <h3>Riwayat Aktivitas</h3>
+            <p style={{fontSize: '12px', color: '#64748b', marginBottom: '20px'}}>Menampilkan 50 data terakhir yang tersimpan di perangkat ini.</p>
+            <div style={{display:'flex', gap:'10px', justifyContent:'center'}}>
+                <button className="btn-order-mass" style={{width: 'auto', padding: '10px 20px'}} onClick={() => setActiveMenu('dashboard')}>Kembali</button>
+                {/* TOMBOL FIX NYA DI SINI */}
+                <button className="btn-order-single" style={{width: 'auto', padding: '10px 20px', backgroundColor:'#ef4444'}} onClick={clearLogs}>Hapus Semua History</button>
+            </div>
           </div>
         )}
       </main>
