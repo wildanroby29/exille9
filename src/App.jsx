@@ -76,15 +76,15 @@ export default function App() {
   const fetchRealPrices = async () => {
     setIsLoading(true);
     try {
-      // Mengambil data dari action=getPrices
       const res = await fetch(`${API_URL}/get-real-prices`);
       const data = await res.json();
       
+      console.log("DEBUG API PRICES:", data); // CEK DI CONSOLE F12
+
       if (data.status === 'success' && data.prices) {
         const priceData = data.prices;
         setRawPrices(priceData);
 
-        // Bedah Key Object untuk jadi list negara
         const countries = Object.keys(priceData).map(code => ({
           code: String(code),
           name: countryNames[code] || `Country ${code}`
@@ -92,22 +92,31 @@ export default function App() {
 
         setDisplayCountries(countries);
         
-        // Auto-select opsi harga pertama dari negara terpilih
+        // Paksa cari opsi harga untuk negara default (Indonesia/6)
         const initialOptions = parseOptions(priceData, selectedCountry.code);
-        if (initialOptions.length > 0) setSelectedPriceOption(initialOptions[0]);
+        if (initialOptions.length > 0) {
+          setSelectedPriceOption(initialOptions[0]);
+        }
       }
-    } catch (err) { console.error("API Error"); }
+    } catch (err) { console.error("Gagal ambil data harga server."); }
     setIsLoading(false);
   };
 
-  // Helper untuk mengubah { "15.00": 100 } jadi array [{price: 15.00, count: 100}]
   const parseOptions = (allPrices, countryCode) => {
-    const countryData = allPrices[countryCode];
+    // Pastikan countryCode jadi string karena key object API biasanya string
+    const codeStr = String(countryCode);
+    const countryData = allPrices[codeStr];
+
+    console.log(`Cek Data Negara ${codeStr}:`, countryData);
+
     if (countryData && countryData['wa']) {
-      return Object.entries(countryData['wa']).map(([prc, cnt]) => ({
+      const options = Object.entries(countryData['wa']).map(([prc, cnt]) => ({
         price: parseFloat(prc),
         count: parseInt(cnt)
       })).sort((a, b) => a.price - b.price);
+      
+      console.log("Hasil Parse Options:", options);
+      return options;
     }
     return [];
   };
@@ -115,7 +124,7 @@ export default function App() {
   const handleSelectCountry = (country) => {
     setSelectedCountry(country);
     const options = parseOptions(rawPrices, country.code);
-    setSelectedPriceOption(options[0] || null);
+    setSelectedPriceOption(options.length > 0 ? options[0] : null);
   };
 
   const handleOrder = async (qty = 1) => {
@@ -127,7 +136,6 @@ export default function App() {
     for (let i = 0; i < qty; i++) {
       try {
         const op = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
-        // Menggunakan action=getNumber dengan parameter harga & negara
         const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${selectedPriceOption.price}${op}`);
         const data = await res.json();
         if (data.status === 'success') {
@@ -143,7 +151,6 @@ export default function App() {
 
   const handleCancel = async (id) => {
     try {
-      // Menggunakan action=setStatus status=8 (cancel)
       const res = await fetch(`${API_URL}/cancel-order?id=${id}`);
       const data = await res.json();
       if (data.status === 'success') {
@@ -158,7 +165,6 @@ export default function App() {
     const interval = setInterval(async () => {
       activeOrders.filter(o => o.status === 'WAITING').forEach(async (order) => {
         try {
-          // Menggunakan action=getStatus
           const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
           const data = await res.json();
           if (data.status === 'SUCCESS') {
@@ -175,7 +181,7 @@ export default function App() {
   const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
   const copy = (t) => { if (t) navigator.clipboard.writeText(t); };
 
-  // Data harga untuk dropdown
+  // Ambil list harga untuk ditampilkan di dropdown UI
   const currentOptions = parseOptions(rawPrices, selectedCountry.code);
 
   if (!user) {
@@ -245,18 +251,22 @@ export default function App() {
                 </div>
 
                 <div style={{marginTop: '15px'}}>
-                  <label style={{fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '5px'}}>LAYANAN (HARGA & STOK):</label>
+                  <label style={{fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '5px'}}>LAYANAN WHATSAPP (HARGA & STOK):</label>
                   <select 
                     className="search-input-custom" 
                     style={{padding: '8px', appearance: 'auto', cursor: 'pointer', background: '#1a2234', color: '#fff'}}
                     value={selectedPriceOption ? selectedPriceOption.price : ''}
-                    onChange={(e) => setSelectedPriceOption(currentOptions.find(o => o.price === parseFloat(e.target.value)))}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      const opt = currentOptions.find(o => o.price === val);
+                      setSelectedPriceOption(opt || null);
+                    }}
                   >
                     {currentOptions.length > 0 ? currentOptions.map((opt, idx) => (
                       <option key={idx} value={opt.price}>
                         {formatIDR(opt.price)} | Stok: {opt.count} pcs
                       </option>
-                    )) : <option>Stok Kosong / Tidak Ada Layanan</option>}
+                    )) : <option value="">--- Stok Tidak Tersedia ---</option>}
                   </select>
                 </div>
 
