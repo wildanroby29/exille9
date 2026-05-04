@@ -11,7 +11,7 @@ export default function App() {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [balance, setBalance] = useState(0); 
   const [livePrices, setLivePrices] = useState([]);
-  const [selectedCountry, setSelectedCountry] = useState({ code: '6', price: 0, name: 'Indonesia' });
+  const [selectedCountry, setSelectedCountry] = useState({ code: '6', price: 0, name: 'Indonesia', flag: '🇮🇩' });
   const [selectedProvider, setSelectedProvider] = useState('Any');
   const [searchTerm, setSearchTerm] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -71,18 +71,23 @@ export default function App() {
   };
 
   const fetchRealPrices = async () => {
+    setIsLoading(true);
     try {
       const res = await fetch(`${API_URL}/get-real-prices`);
       const data = await res.json();
       if (data.status === 'success') {
-        const names = { "0": "Russia", "6": "Indonesia", "12": "USA", "7": "Malaysia", "22": "India" /* ... tambahkan sisanya ... */ };
-        const formatted = data.prices.map(p => ({ ...p, name: names[p.code] || `Negara ${p.code}` }));
+        // Data sekarang otomatis membawa name dan flag dari MongoDB
+        const formatted = data.prices;
         const sorted = formatted.sort((a, b) => a.code === '6' ? -1 : b.code === '6' ? 1 : a.name.localeCompare(b.name));
         setLivePrices(sorted);
+        
         const indo = sorted.find(p => p.code === '6') || sorted[0];
-        if (indo && !selectedCountry.price) setSelectedCountry({ code: indo.code, price: indo.priceIdr, name: indo.name });
+        if (indo && !selectedCountry.price) {
+            setSelectedCountry({ code: indo.code, price: indo.priceIdr, name: indo.name, flag: indo.flag });
+        }
       }
     } catch (err) { console.log("Gagal memuat harga"); }
+    setIsLoading(false);
   };
   
   // --- ORDER LOGIC ---
@@ -94,7 +99,6 @@ export default function App() {
     for (let i = 0; i < qty; i++) {
       try {
         const op = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
-        // Mengirimkan price agar backend bisa mencatat nominal untuk refund nantinya
         const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${selectedCountry.price}${op}`);
         const data = await res.json();
         if (data.status === 'success') {
@@ -111,26 +115,23 @@ export default function App() {
   // --- CANCEL & REFUND LOGIC ---
   const handleCancel = async (id) => {
     try {
-      // Backend sekarang otomatis handle refund berdasarkan ID di database
       const res = await fetch(`${API_URL}/cancel-order?id=${id}`);
       const data = await res.json();
       if (data.status === 'success') {
         setActiveOrders(prev => prev.filter(x => x.id !== id));
-        fetchBalance(); // Saldo otomatis bertambah di UI setelah refund sukses
+        fetchBalance();
       }
     } catch (e) { console.error("Cancel failed"); }
   };
 
-  // --- BACKGROUND CHECKER (OTP & EXPIRED) ---
+  // --- BACKGROUND CHECKER ---
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(async () => {
-      // 1. Cek Expired (Auto-Refund)
       setActiveOrders(prev => {
         const updated = prev.map(o => {
           const isTooOld = (Date.now() - o.createdAt) / 1000 > 300;
           if (!o.otp && isTooOld && o.status === 'WAITING') {
-            // Tembak API cancel secara background agar saldo balik
             fetch(`${API_URL}/cancel-order?id=${o.id}`).then(() => fetchBalance());
             return { ...o, status: 'EXPIRED' };
           }
@@ -139,7 +140,6 @@ export default function App() {
         return updated;
       });
 
-      // 2. Cek OTP
       activeOrders.filter(o => o.status === 'WAITING').forEach(async (order) => {
         try {
           const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
@@ -155,7 +155,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [user, activeOrders]);
 
-  // --- UI HELPERS ---
   const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
   const copy = (t) => { if (t) navigator.clipboard.writeText(t); };
 
@@ -178,7 +177,6 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* ... (Sidebar & Header Tetap Sama) ... */}
       <aside className="sidebar">
         <div className="sidebar-logo"><Zap size={16} className="text-blue" fill="currentColor"/> E X I L L E 9</div>
         <div className="user-profile-badge"><div className="avatar">{user[0].toUpperCase()}</div><span>{user.toUpperCase()}</span></div>
@@ -205,7 +203,6 @@ export default function App() {
 
         {activeMenu === 'dashboard' ? (
           <div className="dashboard-wrapper">
-            {/* PANEL SETTINGS */}
             <div className="panel-card">
               <div className="panel-header">Settings</div>
               <div className="scroll-area">
@@ -220,12 +217,17 @@ export default function App() {
                   <input type="text" placeholder="Cari Negara..." className="search-input-custom" onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
                 
-                <div style={{maxHeight: '120px', overflowY: 'auto'}}>
+                {/* List Negara dengan Flag */}
+                <div style={{maxHeight: '150px', overflowY: 'auto', border: '1px solid #232d42', borderRadius: '4px'}}>
                     {livePrices.filter(n => n.name.toLowerCase().includes(searchTerm.toLowerCase()) || n.code.includes(searchTerm)).map(n => (
-                    <div key={n.code} className={`list-item ${selectedCountry.code === n.code ? 'active' : ''}`} onClick={() => setSelectedCountry({code: n.code, price: n.priceIdr, name: n.name})}>
-                        <span>{n.name} ({n.code})</span><span className="text-blue">{formatIDR(n.priceIdr)}</span>
+                    <div key={n.code} className={`list-item ${selectedCountry.code === n.code ? 'active' : ''}`} onClick={() => setSelectedCountry({code: n.code, price: n.priceIdr, name: n.name, flag: n.flag})}>
+                        <span>{n.flag} {n.name} ({n.code})</span><span className="text-blue">{formatIDR(n.priceIdr)}</span>
                     </div>
                     ))}
+                </div>
+
+                <div className="selected-info" style={{marginTop: '10px', fontSize: '11px', color: '#94a3b8'}}>
+                    Selected: <b>{selectedCountry.flag} {selectedCountry.name}</b>
                 </div>
 
                 <button disabled={isOrderingState} className="btn-order-single" onClick={() => handleOrder(1)}>
@@ -238,7 +240,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* LIVE MONITOR */}
             <div className="panel-card">
               <div className="panel-header">Live Monitor ({activeOrders.length})</div>
               <div className="scroll-area">
@@ -273,7 +274,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* LOGS */}
             <div className="panel-card">
               <div className="panel-header">Activity Logs</div>
               <div className="scroll-area" style={{padding: 0}}>
