@@ -23,9 +23,8 @@ export default function App() {
   const [activeOrders, setActiveOrders] = useState([]);
   const [logs, setLogs] = useState([]);
 
-  // DAFTAR NEGARA LENGKAP SESUAI DATABASE HERO-SMS/SMS-ACTIVATE
   const countryNames = {
-    "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines", "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania", "10": "Vietnam", "11": "Kyrgyzstan", "12": "USA", "13": "Israel", "14": "Hong Kong", "15": "Poland", "16": "United Kingdom", "17": "Madagascar", "18": "Congo", "19": "Nigeria", "20": "Macau", "21": "Egypt", "22": "India", "23": "Ireland", "24": "Cambodia", "25": "Laos", "26": "Haiti", "27": "Ivory Coast", "28": "Gambia", "29": "Serbia", "30": "Yemen", "31": "South Africa", "32": "Romania", "33": "Colombia", "34": "Estonia", "35": "Azerbaijan", "36": "Canada", "37": "Morocco", "38": "Ghana", "39": "Argentina", "40": "Uzbekistan", "41": "Cameroon", "42": "Chad", "43": "Germany", "44": "Lithuania", "45": "Croatia", "46": "Sweden", "47": "Iraq", "48": "Netherlands", "49": "Latvia", "50": "Austria", "51": "Belarus", "52": "Thailand", "53": "Saudi Arabia", "54": "Mexico", "55": "Taiwan", "56": "Spain", "57": "Iran", "58": "Algeria", "59": "Slovenia", "60": "Bangladesh", "61": "Senegal", "62": "Turkey", "63": "Czech Republic", "64": "Sri Lanka", "65": "Peru", "66": "Pakistan", "67": "New Zealand", "68": "Guinea", "69": "Mali", "70": "Venezuela", "71": "Ethiopia", "72": "Mongolia", "73": "Brazil", "74": "Afghanistan", "75": "Uganda", "76": "Angola", "77": "Cyprus", "78": "France", "79": "Papua New Guinea", "80": "Mozambique", "81": "Nepal", "82": "Singapore", "83": "Oman", "84": "Libya", "85": "South Korea", "86": "Qatar", "87": "Jordan", "88": "Eritrea", "89": "South Sudan", "90": "Norway", "91": "Bosnia", "92": "Bahrain", "93": "Mauritania", "94": "Benin", "95": "Armenia", "97": "Burkina Faso", "98": "Gabon", "99": "Portugal", "100": "Sierra Leone", "101": "Georgia", "102": "Tunisia", "104": "Rwanda", "105": "Slovakia", "106": "Kuwait", "107": "Uruguay", "108": "Chile", "110": "Ecuador", "111": "Panama", "112": "Cuba", "113": "Paraguay", "114": "Honduras", "116": "Nicaragua", "117": "El Salvador", "118": "Bolivia", "119": "Costa Rica", "120": "Guatemala", "121": "UAE", "122": "Zimbabwe", "123": "Japan", "126": "Mauritius", "128": "Sudan", "129": "Maldives", "142": "Belize", "143": "Bhutan", "146": "Botswana", "147": "Somalia", "148": "Djibouti", "150": "Cape Verde", "152": "Lesotho", "157": "French Polynesia", "187": "USA (Virtual)"
+    "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines", "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania", "10": "Vietnam", "11": "Kyrgyzstan", "12": "USA", "15": "Poland", "16": "United Kingdom", "22": "India", "52": "Thailand", "62": "Turkey", "73": "Brazil", "82": "Singapore", "187": "USA (Virtual)"
   };
 
   const handleLogin = async (e) => {
@@ -44,8 +43,8 @@ export default function App() {
         if (data.status === 'success') {
             localStorage.setItem('logged_user', data.user.username);
             setUser(data.user.username);
-        } else { setLoginError('❌ Login Gagal!'); }
-    } catch (err) { setLoginError('❌ Server Error!'); }
+        } else { setLoginError('Login Gagal!'); }
+    } catch (err) { setLoginError('Server Error!'); }
   };
   
   const handleLogout = () => {
@@ -53,25 +52,22 @@ export default function App() {
     setUser('');
   };
 
-  // LOGIKA UTAMA: MEMBEDAH DATA DARI DATABASE
   const currentOptions = useMemo(() => {
     const codeStr = String(selectedCountry.code);
     const countryData = rawPrices[codeStr];
     
-    // Database mengirim { "wa": { "harga": stok } }
     if (countryData && countryData['wa']) {
       return Object.entries(countryData['wa'])
         .map(([prc, cnt]) => ({
           price: parseFloat(prc),
           count: parseInt(cnt)
         }))
-        .filter(opt => opt.count > 0) // Hanya tampilkan yang ada stok
+        .filter(opt => opt.count > 0)
         .sort((a, b) => a.price - b.price);
     }
     return [];
   }, [rawPrices, selectedCountry]);
 
-  // Sinkronisasi otomatis saat daftar harga berubah
   useEffect(() => {
     if (currentOptions.length > 0) {
       setSelectedPriceOption(currentOptions[0]);
@@ -107,19 +103,22 @@ export default function App() {
       if (data.status === 'success' && data.prices) {
         setRawPrices(data.prices);
 
-        // Map kode negara yang ada di response database ke nama lengkap
-        const countries = Object.keys(data.prices).map(code => ({
+        const availableCodes = Object.keys(data.prices);
+        const countries = availableCodes.map(code => ({
           code: String(code),
-          name: countryNames[code] || `Country ${code}`
-        })).sort((a, b) => {
-            if (a.code === '6') return -1;
-            if (b.code === '6') return 1;
-            return a.name.localeCompare(b.name);
-        });
+          name: countryNames[code] || `Negara ${code}`
+        })).sort((a, b) => a.code === '6' ? -1 : b.code === '6' ? 1 : a.name.localeCompare(b.name));
 
-        setDisplayCountries(countries);
+        if (countries.length > 0) {
+          setDisplayCountries(countries);
+          const hasIndonesia = countries.find(c => c.code === '6');
+          if (hasIndonesia) setSelectedCountry(hasIndonesia);
+          else setSelectedCountry(countries[0]);
+        }
       }
-    } catch (err) { console.error("Database connection error"); }
+    } catch (err) {
+      setErrorMsg('Gagal mengambil data dari Database Anda');
+    }
     setIsLoading(false);
   };
 
@@ -138,8 +137,8 @@ export default function App() {
           setActiveOrders(prev => [{ id: data.id, number: data.number, otp: null, status: 'WAITING', createdAt: Date.now() }, ...prev]);
           fetchBalance();
           if (qty > 1) await new Promise(r => setTimeout(r, 800));
-        } else { setErrorMsg(`⚠️ ${data.message}`); break; }
-      } catch (err) { setErrorMsg("⚠️ ERROR SERVER!"); break; }
+        } else { setErrorMsg(`${data.message}`); break; }
+      } catch (err) { setErrorMsg("ERROR SERVER!"); break; }
     }
     setIsOrderingState(false);
     isOrdering.current = false;
@@ -187,6 +186,7 @@ export default function App() {
             <div className="input-group"><User size={16}/><input type="text" placeholder="Username" value={credentials.username} onChange={(e) => setCredentials({...credentials, username: e.target.value})} required /></div>
             <div className="input-group"><Lock size={16}/><input type="password" placeholder="Password" value={credentials.password} onChange={(e) => setCredentials({...credentials, password: e.target.value})} required /></div>
             <button type="submit" className="btn-login">LOGIN SYSTEM</button>
+            {loginError && <div className="text-red" style={{marginTop: '10px', fontSize: '12px', textAlign: 'center'}}>{loginError}</div>}
           </form>
         </div>
       </div>
@@ -244,7 +244,7 @@ export default function App() {
                 </div>
 
                 <div style={{marginTop: '15px'}}>
-                  <label style={{fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '5px'}}>LAYANAN AKTIF (HARGA & STOK):</label>
+                  <label style={{fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '5px'}}>LAYANAN (HARGA & STOK DARI DATABASE ANDA):</label>
                   <select 
                     className="search-input-custom" 
                     style={{padding: '8px', cursor: 'pointer', background: '#1a2234', color: '#fff'}}
@@ -258,7 +258,7 @@ export default function App() {
                       <option key={idx} value={opt.price}>
                         {formatIDR(opt.price)} | Stok: {opt.count} pcs
                       </option>
-                    )) : <option value="">--- Stok Kosong / Tidak Tersedia ---</option>}
+                    )) : <option value="">--- Menunggu Sinkronisasi Database ---</option>}
                   </select>
                 </div>
 
@@ -266,7 +266,7 @@ export default function App() {
                   {isOrderingState ? 'ORDERING...' : `+ ORDER 1 NOMOR`}
                 </button>
                 <button disabled={isOrderingState || !selectedPriceOption} className="btn-order-mass" onClick={() => handleOrder(5)}>
-                  {isOrderingState ? 'PROCESSING...' : '🚀 MASS ORDER 5X'}
+                  {isOrderingState ? 'PROCESSING...' : ' MASS ORDER 5X'}
                 </button>
                 {errorMsg && <div className="text-red" style={{fontSize:'10px', marginTop:'5px'}}>{errorMsg}</div>}
               </div>
