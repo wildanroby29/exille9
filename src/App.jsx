@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
-import { Zap, Smartphone, Search, Copy, Trash2, History, RefreshCw, Search as SearchIcon, Lock, User, LogOut } from 'lucide-react';
+import { Zap, Smartphone, Search, Copy, Trash2, History, RefreshCw, Lock, User, LogOut } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://wildanrobians29-otp-gateway-api.hf.space';
 
@@ -10,10 +10,8 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [balance, setBalance] = useState(0); 
-  const [rawPrices, setRawPrices] = useState({}); 
-  const [displayCountries, setDisplayCountries] = useState([]);
-  const [selectedCountry, setSelectedCountry] = useState({ code: '6', name: 'Indonesia' });
-  const [selectedPriceOption, setSelectedPriceOption] = useState(null);
+  const [livePrices, setLivePrices] = useState([]);
+  const [selectedCountry, setSelectedCountry] = useState({ code: '6', price: 0, name: 'Indonesia' });
   const [selectedProvider, setSelectedProvider] = useState('Any');
   const [searchTerm, setSearchTerm] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -23,10 +21,7 @@ export default function App() {
   const [activeOrders, setActiveOrders] = useState([]);
   const [logs, setLogs] = useState([]);
 
-  const countryNames = {
-    "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines", "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania", "10": "Vietnam", "11": "Kyrgyzstan", "12": "USA", "15": "Poland", "16": "United Kingdom", "22": "India", "52": "Thailand", "62": "Turkey", "73": "Brazil", "82": "Singapore", "187": "USA (Virtual)"
-  };
-
+  // --- LOGIN ---
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -43,39 +38,17 @@ export default function App() {
         if (data.status === 'success') {
             localStorage.setItem('logged_user', data.user.username);
             setUser(data.user.username);
-        } else { setLoginError('Login Gagal!'); }
-    } catch (err) { setLoginError('Server Error!'); }
+        } else { setLoginError('❌ Username atau Password salah!'); }
+    } catch (err) { setLoginError('❌ Server Error!'); }
   };
   
   const handleLogout = () => {
     localStorage.removeItem('logged_user');
     setUser('');
+    setCredentials({ username: '', password: '' });
   };
 
-  const currentOptions = useMemo(() => {
-    const codeStr = String(selectedCountry.code);
-    const countryData = rawPrices[codeStr];
-    
-    if (countryData && countryData['wa']) {
-      return Object.entries(countryData['wa'])
-        .map(([prc, cnt]) => ({
-          price: parseFloat(prc),
-          count: parseInt(cnt)
-        }))
-        .filter(opt => opt.count > 0)
-        .sort((a, b) => a.price - b.price);
-    }
-    return [];
-  }, [rawPrices, selectedCountry]);
-
-  useEffect(() => {
-    if (currentOptions.length > 0) {
-      setSelectedPriceOption(currentOptions[0]);
-    } else {
-      setSelectedPriceOption(null);
-    }
-  }, [currentOptions]);
-
+  // --- DATA LOADING ---
   useEffect(() => {
     if (user) {
       setActiveOrders(JSON.parse(localStorage.getItem(`orders_${user}`)) || []);
@@ -85,65 +58,99 @@ export default function App() {
     }
   }, [user]);
 
+  useEffect(() => { if (user) localStorage.setItem(`orders_${user}`, JSON.stringify(activeOrders)); }, [activeOrders, user]);
+  useEffect(() => { if (user) localStorage.setItem(`logs_${user}`, JSON.stringify(logs)); }, [logs, user]);
+
   const fetchBalance = async () => {
     if (!user) return;
+    setIsLoading(true);
     try {
       const res = await fetch(`${API_URL}/get-user-balance?username=${user}`);
       const data = await res.json();
       if (data.status === 'success') setBalance(parseFloat(data.balance));
-    } catch (err) {}
-  };
-
-  const fetchRealPrices = async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/get-real-prices`);
-      const data = await res.json();
-      
-      if (data.status === 'success' && data.prices) {
-        setRawPrices(data.prices);
-
-        const availableCodes = Object.keys(data.prices);
-        const countries = availableCodes.map(code => ({
-          code: String(code),
-          name: countryNames[code] || `Negara ${code}`
-        })).sort((a, b) => a.code === '6' ? -1 : b.code === '6' ? 1 : a.name.localeCompare(b.name));
-
-        if (countries.length > 0) {
-          setDisplayCountries(countries);
-          const hasIndonesia = countries.find(c => c.code === '6');
-          if (hasIndonesia) setSelectedCountry(hasIndonesia);
-          else setSelectedCountry(countries[0]);
-        }
-      }
-    } catch (err) {
-      setErrorMsg('Gagal mengambil data dari Database Anda');
-    }
+    } catch (err) { console.log("Balance offline"); }
     setIsLoading(false);
   };
 
+  const fetchRealPrices = async () => {
+    try {
+      const res = await fetch(`${API_URL}/get-real-prices`);
+      const data = await res.json();
+      if (data.status === 'success') {
+        const names = {
+          "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines",
+          "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania",
+          "10": "Vietnam", "11": "Kyrgyzstan", "12": "USA", "13": "Israel", "14": "Hong Kong",
+          "15": "Poland", "16": "United Kingdom", "17": "Madagascar", "18": "Congo", "19": "Nigeria",
+          "20": "Macau", "21": "Egypt", "22": "India", "23": "Ireland", "24": "Cambodia",
+          "25": "Laos", "26": "Haiti", "27": "Ivory Coast", "28": "Gambia", "29": "Serbia",
+          "30": "Yemen", "31": "South Africa", "32": "Romania", "33": "Colombia", "34": "Estonia",
+          "35": "Azerbaijan", "36": "Canada", "37": "Morocco", "38": "Ghana", "39": "Argentina",
+          "40": "Uzbekistan", "41": "Cameroon", "42": "Chad", "43": "Germany", "44": "Lithuania",
+          "45": "Croatia", "46": "Sweden", "47": "Iraq", "48": "Netherlands", "49": "Latvia",
+          "50": "Austria", "51": "Belarus", "52": "Thailand", "53": "Saudi Arabia", "54": "Mexico",
+          "55": "Taiwan", "56": "Spain", "57": "Iran", "58": "Algeria", "59": "Slovenia",
+          "60": "Bangladesh", "61": "Senegal", "62": "Turkey", "63": "Sri Lanka", "64": "Peru",
+          "66": "Pakistan", "67": "New Zealand", "68": "Guinea", "73": "Brazil", "78": "Portugal",
+          "80": "Chile", "81": "Australia", "82": "Singapore", "83": "Italy", "86": "UAE",
+          "87": "Afghanistan", "88": "South Sudan", "94": "Zimbabwe", "100": "Czech", "102": "Angola",
+          "103": "Finland", "104": "Switzerland", "105": "Qatar", "106": "Libya", "107": "DR Congo",
+          "110": "Dominican Republic", "111": "Armenia", "112": "Sierra Leone", "114": "Moldova",
+          "115": "Oman", "116": "Belgium", "117": "Honduras", "118": "Tajikistan", "119": "Georgia",
+          "120": "Cuba", "121": "Denmark", "122": "Tunisia", "123": "Salvador", "124": "Mongolia",
+          "125": "Nepal", "126": "Hungary", "127": "Bhutan", "128": "Guatemala", "129": "Togo",
+          "131": "Mozambique", "132": "Ethiopia", "133": "Burkina Faso", "136": "Nicaragua",
+          "138": "Bulgaria", "139": "Mauritius", "141": "Paraguay", "142": "Seychelles",
+          "143": "Suriname", "144": "Zambia", "145": "Mali", "146": "Jamaica", "150": "Papua",
+          "151": "Bosnia", "152": "Liberia", "154": "Turkmenistan", "155": "Bolivia",
+          "156": "Puerto Rico", "157": "Central African Republic", "158": "Somalia", "159": "Albania",
+          "160": "Fiji", "162": "Trinidad and Tobago", "163": "Guyana", "164": "Gabon",
+          "165": "Botswana", "166": "Saint Kitts and Nevis", "167": "Namibia", "168": "Niger",
+          "170": "Norway", "172": "Uganda", "173": "Timor-Leste", "174": "Kuwait", "175": "Swaziland",
+          "176": "Syria", "177": "Panama", "178": "Mauritania", "179": "Jordan", "180": "Barbados",
+          "181": "Burundi", "182": "Benin", "183": "Brunei", "184": "Bahamas", "185": "Belize",
+          "186": "Dominica", "187": "Grenada", "188": "Guinea-Bissau", "189": "Iceland", "190": "Comoros",
+          "191": "Lesotho", "192": "Malawi", "193": "Rwanda", "194": "Slovakia", "195": "Monaco",
+          "196": "Bahrain", "197": "Reunion", "198": "Lebanon", "199": "Uruguay", "200": "Maldives",
+          "201": "Guadeloupe", "202": "French Guiana", "203": "Saint Lucia", "204": "Luxembourg",
+          "205": "Equatorial Guinea", "206": "Djibouti", "207": "Antigua and Barbuda",
+          "208": "Cayman Islands", "209": "Montenegro", "210": "Eritrea", "211": "Sao Tome and Principe",
+          "212": "Aruba", "213": "Montserrat", "214": "North Macedonia", "215": "New Caledonia",
+          "216": "Cape Verde", "217": "Palestine", "218": "Samoa", "219": "Malta", "220": "Gibraltar",
+          "221": "Kosovo", "223": "Cyprus", "224": "Costa Rica", "225": "Sudan"
+        };
+        const formatted = data.prices.map(p => ({ ...p, name: names[p.code] || `Negara ${p.code}` }));
+        const sorted = formatted.sort((a, b) => a.code === '6' ? -1 : b.code === '6' ? 1 : a.name.localeCompare(b.name));
+        setLivePrices(sorted);
+        const indo = sorted.find(p => p.code === '6') || sorted[0];
+        if (indo && !selectedCountry.price) setSelectedCountry({ code: indo.code, price: indo.priceIdr, name: indo.name });
+      }
+    } catch (err) { console.log("Gagal memuat harga"); }
+  };
+  
+  // --- ORDER LOGIC ---
   const handleOrder = async (qty = 1) => {
-    if (isOrdering.current || !selectedPriceOption) return;
+    if (isOrdering.current) return;
     isOrdering.current = true;
     setIsOrderingState(true); 
     setErrorMsg('');
-    
     for (let i = 0; i < qty; i++) {
       try {
         const op = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
-        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${selectedPriceOption.price}${op}`);
+        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${selectedCountry.price}${op}`);
         const data = await res.json();
         if (data.status === 'success') {
           setActiveOrders(prev => [{ id: data.id, number: data.number, otp: null, status: 'WAITING', createdAt: Date.now() }, ...prev]);
           fetchBalance();
-          if (qty > 1) await new Promise(r => setTimeout(r, 800));
-        } else { setErrorMsg(`${data.message}`); break; }
-      } catch (err) { setErrorMsg("ERROR SERVER!"); break; }
+          if (qty > 1) await new Promise(r => setTimeout(r, 1000));
+        } else { setErrorMsg(`⚠️ ${data.message}`); break; }
+      } catch (err) { setErrorMsg("⚠️ ERROR SERVER!"); break; }
     }
     setIsOrderingState(false);
     isOrdering.current = false;
   };
 
+  // --- CANCEL & REFUND LOGIC ---
   const handleCancel = async (id) => {
     try {
       const res = await fetch(`${API_URL}/cancel-order?id=${id}`);
@@ -152,12 +159,35 @@ export default function App() {
         setActiveOrders(prev => prev.filter(x => x.id !== id));
         fetchBalance(); 
       }
-    } catch (e) {}
+    } catch (e) { console.error("Cancel failed"); }
   };
 
+  // --- HISTORY MANAGEMENT ---
+  const clearLogs = () => {
+    if (window.confirm("Hapus semua riwayat OTP?")) {
+      setLogs([]);
+      localStorage.removeItem(`logs_${user}`);
+    }
+  };
+
+  // --- BACKGROUND CHECKER ---
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(async () => {
+      // Check for Expiration
+      setActiveOrders(prev => {
+        const updated = prev.map(o => {
+          const timeLeft = 300 - (Date.now() - o.createdAt) / 1000;
+          if (!o.otp && timeLeft <= 0 && o.status === 'WAITING') {
+            fetch(`${API_URL}/cancel-order?id=${o.id}`).then(() => fetchBalance());
+            return { ...o, status: 'EXPIRED' };
+          }
+          return o;
+        });
+        return updated;
+      });
+
+      // Check for OTP
       activeOrders.filter(o => o.status === 'WAITING').forEach(async (order) => {
         try {
           const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
@@ -169,11 +199,11 @@ export default function App() {
           }
         } catch (e) {}
       });
-    }, 4000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [user, activeOrders]);
 
-  const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
+  const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
   const copy = (t) => { if (t) navigator.clipboard.writeText(t); };
 
   if (!user) {
@@ -185,8 +215,8 @@ export default function App() {
           <form onSubmit={handleLogin}>
             <div className="input-group"><User size={16}/><input type="text" placeholder="Username" value={credentials.username} onChange={(e) => setCredentials({...credentials, username: e.target.value})} required /></div>
             <div className="input-group"><Lock size={16}/><input type="password" placeholder="Password" value={credentials.password} onChange={(e) => setCredentials({...credentials, password: e.target.value})} required /></div>
+            {loginError && <div className="login-error">{loginError}</div>}
             <button type="submit" className="btn-login">LOGIN SYSTEM</button>
-            {loginError && <div className="text-red" style={{marginTop: '10px', fontSize: '12px', textAlign: 'center'}}>{loginError}</div>}
           </form>
         </div>
       </div>
@@ -222,7 +252,7 @@ export default function App() {
         {activeMenu === 'dashboard' ? (
           <div className="dashboard-wrapper">
             <div className="panel-card">
-              <div className="panel-header">Settings Hero-SMS</div>
+              <div className="panel-header">Settings</div>
               <div className="scroll-area">
                 <div className="provider-grid">
                   {['Any', 'Telkomsel', 'Indosat', 'XL', 'Axis', 'Three', 'Smartfren'].map(p => (
@@ -231,42 +261,23 @@ export default function App() {
                 </div>
                 
                 <div style={{position: 'relative', margin: '15px 0 8px 0'}}>
-                  <SearchIcon size={12} style={{position: 'absolute', left: '8px', top: '8px', color: '#64748b'}}/>
-                  <input type="text" placeholder="Cari Negara..." className="search-input-custom" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                  <Search size={12} style={{position: 'absolute', left: '8px', top: '8px', color: '#64748b'}}/>
+                  <input type="text" placeholder="Cari Negara..." className="search-input-custom" onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
                 
-                <div style={{maxHeight: '120px', overflowY: 'auto', border: '1px solid #232d42', borderRadius: '4px'}}>
-                    {displayCountries.filter(n => n.name.toLowerCase().includes(searchTerm.toLowerCase()) || n.code.includes(searchTerm)).map(n => (
-                    <div key={n.code} className={`list-item ${selectedCountry.code === n.code ? 'active' : ''}`} onClick={() => setSelectedCountry(n)}>
-                        <span>{n.name} ({n.code})</span>
+                <div style={{maxHeight: '120px', overflowY: 'auto'}}>
+                    {livePrices.filter(n => n.name.toLowerCase().includes(searchTerm.toLowerCase()) || n.code.includes(searchTerm)).map(n => (
+                    <div key={n.code} className={`list-item ${selectedCountry.code === n.code ? 'active' : ''}`} onClick={() => setSelectedCountry({code: n.code, price: n.priceIdr, name: n.name})}>
+                        <span>{n.name} ({n.code})</span><span className="text-blue">{formatIDR(n.priceIdr)}</span>
                     </div>
                     ))}
                 </div>
 
-                <div style={{marginTop: '15px'}}>
-                  <label style={{fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '5px'}}>LAYANAN (HARGA & STOK DARI DATABASE ANDA):</label>
-                  <select 
-                    className="search-input-custom" 
-                    style={{padding: '8px', cursor: 'pointer', background: '#1a2234', color: '#fff'}}
-                    value={selectedPriceOption ? selectedPriceOption.price : ''}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value);
-                      setSelectedPriceOption(currentOptions.find(o => o.price === val));
-                    }}
-                  >
-                    {currentOptions.length > 0 ? currentOptions.map((opt, idx) => (
-                      <option key={idx} value={opt.price}>
-                        {formatIDR(opt.price)} | Stok: {opt.count} pcs
-                      </option>
-                    )) : <option value="">--- Menunggu Sinkronisasi Database ---</option>}
-                  </select>
-                </div>
-
-                <button disabled={isOrderingState || !selectedPriceOption} className="btn-order-single" onClick={() => handleOrder(1)}>
-                  {isOrderingState ? 'ORDERING...' : `+ ORDER 1 NOMOR`}
+                <button disabled={isOrderingState} className="btn-order-single" onClick={() => handleOrder(1)}>
+                  {isOrderingState ? 'ORDERING...' : `+ ORDER 1 NUM (${formatIDR(selectedCountry.price)})`}
                 </button>
-                <button disabled={isOrderingState || !selectedPriceOption} className="btn-order-mass" onClick={() => handleOrder(5)}>
-                  {isOrderingState ? 'PROCESSING...' : ' MASS ORDER 5X'}
+                <button disabled={isOrderingState} className="btn-order-mass" onClick={() => handleOrder(5)}>
+                  {isOrderingState ? 'PROCESSING...' : '🚀 MASS ORDER 5X'}
                 </button>
                 {errorMsg && <div className="text-red" style={{fontSize:'10px', marginTop:'5px'}}>{errorMsg}</div>}
               </div>
@@ -275,21 +286,34 @@ export default function App() {
             <div className="panel-card">
               <div className="panel-header">Live Monitor ({activeOrders.length})</div>
               <div className="scroll-area">
-                {activeOrders.map(o => (
-                  <div key={o.id} className="number-slot">
-                    <div style={{ flex: 1 }}>
-                      <span style={{fontSize:'9px', color:'#64748b'}}>ID: {o.id}</span>
-                      <span className="slot-num">{o.number}</span>
+                {activeOrders.map(o => {
+                  const timeLeft = Math.max(0, Math.floor(300 - (Date.now() - o.createdAt) / 1000));
+                  return (
+                    <div key={o.id} className="number-slot" style={{borderColor: o.status === 'EXPIRED' ? '#450a0a' : o.otp ? '#059669' : '#232d42'}}>
+                      <div style={{ flex: 1 }}>
+                        <span style={{fontSize:'9px', color:'#64748b'}}>ID: {o.id}</span>
+                        <span className={`slot-num ${o.status === 'EXPIRED' ? 'expired' : ''}`}>
+                         {o.number.replace(/^(62|6)/, '')}
+                        </span>
+                        {o.status === 'WAITING' && (
+                          <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px'}}>
+                            <span className="timer-text">{Math.floor(timeLeft/60)}:{String(timeLeft%60).padStart(2,'0')}</span>
+                            <span className="status-desc">Waiting SMS...</span>
+                          </div>
+                        )}
+                        {o.status === 'EXPIRED' && <span className="status-desc text-red">Expired & Refunded</span>}
+                        {o.otp && <span className="status-desc text-green">OTP Received</span>}
+                      </div>
+                      <div style={{ textAlign: 'right', marginRight: '10px' }}>
+                        {o.otp ? <div className="otp-badge">{o.otp}</div> : o.status === 'EXPIRED' ? <RefreshCw size={12} style={{opacity: 0.2}}/> : <RefreshCw size={14} className="animate-spin text-blue"/>}
+                      </div>
+                      <div style={{display: 'flex', gap: '4px'}}>
+                        <button onClick={() => copy(o.otp || o.number.replace(/^(62|6)/, ''))} className="btn-icon"><Copy size={12}/></button>
+                        <button onClick={() => handleCancel(o.id)} className="btn-icon text-red"><Trash2 size={12}/></button>
+                      </div>
                     </div>
-                    <div style={{ textAlign: 'right', marginRight: '10px' }}>
-                      {o.otp ? <div className="otp-badge" onClick={() => copy(o.otp)}>{o.otp}</div> : <RefreshCw size={14} className="animate-spin text-blue"/>}
-                    </div>
-                    <div style={{display: 'flex', gap: '4px'}}>
-                      <button onClick={() => copy(o.number)} className="btn-icon"><Copy size={12}/></button>
-                      <button onClick={() => handleCancel(o.id)} className="btn-icon text-red"><Trash2 size={12}/></button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -299,10 +323,10 @@ export default function App() {
                 {logs.map((l, i) => (
                   <div key={i} className="log-row">
                     <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '9px'}}>
-                      <span className="text-green">SUCCESS</span>
+                      <span className="text-green" style={{fontWeight:'bold'}}>SUCCESS</span>
                       <span style={{color: '#64748b'}}>{l.time}</span>
                     </div>
-                    <div style={{color: '#fff'}}>{l.number}</div>
+                    <div style={{color: '#fff', margin: '2px 0'}}>{l.number.replace(/^(62|6)/, '')}</div>
                     <div className="text-blue" style={{fontWeight: '900'}}>OTP: {l.otp}</div>
                   </div>
                 ))}
@@ -313,7 +337,11 @@ export default function App() {
           <div style={{padding: '60px', textAlign: 'center'}}>
             <History size={40} style={{marginBottom: '10px', color: '#64748b'}}/>
             <h3>Riwayat Aktivitas</h3>
-            <button className="btn-order-mass" style={{width: 'auto', padding: '10px 20px', marginTop:'20px'}} onClick={() => setActiveMenu('dashboard')}>Kembali</button>
+            <p style={{fontSize: '12px', color: '#64748b', marginBottom: '20px'}}>Menampilkan 50 data terakhir yang tersimpan di perangkat ini.</p>
+            <div style={{display:'flex', gap:'10px', justifyContent:'center'}}>
+                <button className="btn-order-mass" style={{width: 'auto', padding: '10px 20px'}} onClick={() => setActiveMenu('dashboard')}>Kembali</button>
+                <button className="btn-order-single" style={{width: 'auto', padding: '10px 20px', backgroundColor:'#ef4444'}} onClick={clearLogs}>Hapus Semua History</button>
+            </div>
           </div>
         )}
       </main>
