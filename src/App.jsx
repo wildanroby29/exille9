@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
-import { Zap, Smartphone, Search, Copy, Trash2, History, Wallet, RefreshCw, CheckCircle, Lock, User, LogOut } from 'lucide-react';
+import { Zap, Smartphone, Search, Copy, Trash2, History, RefreshCw, CheckCircle, Lock, User, LogOut } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://wildanrobians29-otp-gateway-api.hf.space';
 
@@ -11,7 +11,7 @@ export default function App() {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [balance, setBalance] = useState(0); 
   const [livePrices, setLivePrices] = useState([]);
-  const [selectedCountry, setSelectedCountry] = useState({ code: '6', price: 0, name: 'Indonesia', flag: '🇮🇩' });
+  const [selectedCountry, setSelectedCountry] = useState({ code: '6', price: 0, name: 'Indonesia', flag: '🇮🇩', stock: 0 });
   const [selectedProvider, setSelectedProvider] = useState('Any');
   const [searchTerm, setSearchTerm] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -76,14 +76,19 @@ export default function App() {
       const res = await fetch(`${API_URL}/get-real-prices`);
       const data = await res.json();
       if (data.status === 'success') {
-        // Data sekarang otomatis membawa name dan flag dari MongoDB
-        const formatted = data.prices;
-        const sorted = formatted.sort((a, b) => a.code === '6' ? -1 : b.code === '6' ? 1 : a.name.localeCompare(b.name));
+        const sorted = data.prices; 
         setLivePrices(sorted);
         
-        const indo = sorted.find(p => p.code === '6') || sorted[0];
-        if (indo && !selectedCountry.price) {
-            setSelectedCountry({ code: indo.code, price: indo.priceIdr, name: indo.name, flag: indo.flag });
+        // Update selection with stock data
+        const current = sorted.find(p => p.code === selectedCountry.code) || sorted.find(p => p.code === '6') || sorted[0];
+        if (current) {
+            setSelectedCountry({ 
+                code: current.code, 
+                price: current.priceIdr, 
+                name: current.name, 
+                flag: current.flag,
+                stock: current.stock 
+            });
         }
       }
     } catch (err) { console.log("Gagal memuat harga"); }
@@ -112,7 +117,6 @@ export default function App() {
     isOrdering.current = false;
   };
 
-  // --- CANCEL & REFUND LOGIC ---
   const handleCancel = async (id) => {
     try {
       const res = await fetch(`${API_URL}/cancel-order?id=${id}`);
@@ -128,18 +132,19 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(async () => {
+      // Check Expiration
       setActiveOrders(prev => {
-        const updated = prev.map(o => {
-          const isTooOld = (Date.now() - o.createdAt) / 1000 > 300;
-          if (!o.otp && isTooOld && o.status === 'WAITING') {
+        return prev.map(o => {
+          const timeLeft = (Date.now() - o.createdAt) / 1000;
+          if (!o.otp && timeLeft > 300 && o.status === 'WAITING') {
             fetch(`${API_URL}/cancel-order?id=${o.id}`).then(() => fetchBalance());
             return { ...o, status: 'EXPIRED' };
           }
           return o;
         });
-        return updated;
       });
 
+      // Check OTP
       activeOrders.filter(o => o.status === 'WAITING').forEach(async (order) => {
         try {
           const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
@@ -217,17 +222,22 @@ export default function App() {
                   <input type="text" placeholder="Cari Negara..." className="search-input-custom" onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
                 
-                {/* List Negara dengan Flag */}
+                {/* List Negara dengan Stok */}
                 <div style={{maxHeight: '150px', overflowY: 'auto', border: '1px solid #232d42', borderRadius: '4px'}}>
                     {livePrices.filter(n => n.name.toLowerCase().includes(searchTerm.toLowerCase()) || n.code.includes(searchTerm)).map(n => (
-                    <div key={n.code} className={`list-item ${selectedCountry.code === n.code ? 'active' : ''}`} onClick={() => setSelectedCountry({code: n.code, price: n.priceIdr, name: n.name, flag: n.flag})}>
-                        <span>{n.flag} {n.name} ({n.code})</span><span className="text-blue">{formatIDR(n.priceIdr)}</span>
+                    <div key={n.code} className={`list-item ${selectedCountry.code === n.code ? 'active' : ''}`} onClick={() => setSelectedCountry({code: n.code, price: n.priceIdr, name: n.name, flag: n.flag, stock: n.stock})}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span>{n.flag} {n.name} ({n.code})</span>
+                            <span style={{ fontSize: '9px', color: '#64748b' }}>Stock: {n.stock} qty</span>
+                        </div>
+                        <span className="text-blue" style={{ fontWeight: 'bold' }}>{formatIDR(n.priceIdr)}</span>
                     </div>
                     ))}
                 </div>
 
-                <div className="selected-info" style={{marginTop: '10px', fontSize: '11px', color: '#94a3b8'}}>
-                    Selected: <b>{selectedCountry.flag} {selectedCountry.name}</b>
+                <div className="selected-info" style={{marginTop: '10px', fontSize: '11px', color: '#94a3b8', display: 'flex', justifyContent: 'space-between'}}>
+                    <span>Selected: <b>{selectedCountry.flag} {selectedCountry.name}</b></span>
+                    <span>Ready: <b className="text-green">{selectedCountry.stock || 0} pcs</b></span>
                 </div>
 
                 <button disabled={isOrderingState} className="btn-order-single" onClick={() => handleOrder(1)}>
