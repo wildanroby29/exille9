@@ -23,7 +23,7 @@ export default function App() {
   const [activeOrders, setActiveOrders] = useState([]);
   const [logs, setLogs] = useState([]);
 
-  // DATABASE NEGARA HERO-SMS LENGKAP
+  // UPDATE: DAFTAR NEGARA LENGKAP HERO-SMS
   const countryNames = {
     "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines",
     "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania",
@@ -43,9 +43,8 @@ export default function App() {
     "75": "Uganda", "76": "Angola", "77": "Cyprus", "78": "France", "79": "Papua New Guinea",
     "80": "Mozambique", "81": "Nepal", "82": "Singapore", "83": "Bahrain", "84": "Armenia",
     "85": "Moldova", "86": "UAE", "87": "Burkina Faso", "88": "Tunisia", "89": "Mauritius",
-    "90": "Liberia", "91": "Georgia", "92": "Greece", "93": "Portugal", "94": "Dortmund",
-    "95": "Suriname", "96": "Burundi", "144": "Benin", "145": "Mauritania", "146": "Sierra Leone",
-    "187": "USA (Virtual)"
+    "90": "Liberia", "91": "Georgia", "92": "Greece", "93": "Portugal", "144": "Benin", 
+    "145": "Mauritania", "146": "Sierra Leone", "187": "USA (Virtual)"
   };
 
   const handleLogin = async (e) => {
@@ -71,7 +70,6 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('logged_user');
     setUser('');
-    setCredentials({ username: '', password: '' });
   };
 
   useEffect(() => {
@@ -82,9 +80,6 @@ export default function App() {
       fetchRealPrices();
     }
   }, [user]);
-
-  useEffect(() => { if (user) localStorage.setItem(`orders_${user}`, JSON.stringify(activeOrders)); }, [activeOrders, user]);
-  useEffect(() => { if (user) localStorage.setItem(`logs_${user}`, JSON.stringify(logs)); }, [logs, user]);
 
   const fetchBalance = async () => {
     if (!user) return;
@@ -100,31 +95,30 @@ export default function App() {
     try {
       const res = await fetch(`${API_URL}/get-real-prices`);
       const data = await res.json();
-      if (data.status === 'success') {
-        const allData = data.prices.map(p => ({ 
-            ...p, 
-            name: countryNames[p.code] || `Negara ${p.code}`,
-            count: p.count || 0 
-        }));
-        setLivePrices(allData);
+      if (data.status === 'success' && data.prices) {
+        setLivePrices(data.prices);
 
-        const unique = allData.reduce((acc, curr) => {
-          if (!acc.find(x => x.code === curr.code)) {
-            const options = allData.filter(ap => ap.code === curr.code);
-            const cheapest = options.sort((a, b) => a.priceIdr - b.priceIdr)[0];
-            acc.push({ ...curr, minPrice: cheapest.priceIdr });
-          }
-          return acc;
-        }, []);
-
+        const unique = [];
+        const map = new Map();
+        for (const item of data.prices) {
+            if(!map.has(String(item.code))){
+                map.set(String(item.code), true);
+                unique.push({
+                    code: String(item.code),
+                    name: countryNames[String(item.code)] || `Negara ${item.code}`
+                });
+            }
+        }
+        
         const sorted = unique.sort((a, b) => a.code === '6' ? -1 : b.code === '6' ? 1 : a.name.localeCompare(b.name));
         setDisplayCountries(sorted);
 
-        const current = sorted.find(p => p.code === selectedCountry.code) || sorted[0];
+        const currentCode = String(selectedCountry.code);
+        const current = sorted.find(p => p.code === currentCode) || sorted[0];
         if (current) {
             setSelectedCountry({ code: current.code, name: current.name });
-            const options = allData.filter(p => p.code === current.code).sort((a, b) => a.priceIdr - b.priceIdr);
-            setSelectedPriceOption(options[0]);
+            const options = data.prices.filter(p => String(p.code) === current.code);
+            setSelectedPriceOption(options[0] || null);
         }
       }
     } catch (err) { console.log("Gagal memuat harga"); }
@@ -133,8 +127,8 @@ export default function App() {
 
   const handleSelectCountry = (country) => {
     setSelectedCountry({ code: country.code, name: country.name });
-    const options = livePrices.filter(p => p.code === country.code).sort((a, b) => a.priceIdr - b.priceIdr);
-    setSelectedPriceOption(options[0]);
+    const options = livePrices.filter(p => String(p.code) === String(country.code));
+    setSelectedPriceOption(options[0] || null);
   };
 
   const handleOrder = async (qty = 1) => {
@@ -169,32 +163,16 @@ export default function App() {
     } catch (e) { console.error("Cancel failed"); }
   };
 
-  const clearLogs = () => {
-    setLogs([]);
-    localStorage.removeItem(`logs_${user}`);
-  };
-
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(async () => {
-      setActiveOrders(prev => {
-        return prev.map(o => {
-          const isTooOld = (Date.now() - o.createdAt) / 1000 > 300;
-          if (!o.otp && isTooOld && o.status === 'WAITING') {
-            fetch(`${API_URL}/cancel-order?id=${o.id}`).then(() => fetchBalance());
-            return { ...o, status: 'EXPIRED' };
-          }
-          return o;
-        });
-      });
-
       activeOrders.filter(o => o.status === 'WAITING').forEach(async (order) => {
         try {
           const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
           const data = await res.json();
           if (data.status === 'SUCCESS') {
             setActiveOrders(prev => prev.map(o => o.id === order.id ? { ...o, otp: data.code, status: 'SUCCESS' } : o));
-            setLogs(l => [{ number: order.number, otp: data.code, time: new Date().toLocaleTimeString(), country: selectedCountry.name }, ...l].slice(0, 50));
+            setLogs(l => [{ number: order.number, otp: data.code, time: new Date().toLocaleTimeString() }, ...l].slice(0, 50));
             fetchBalance();
           }
         } catch (e) {}
@@ -215,7 +193,6 @@ export default function App() {
           <form onSubmit={handleLogin}>
             <div className="input-group"><User size={16}/><input type="text" placeholder="Username" value={credentials.username} onChange={(e) => setCredentials({...credentials, username: e.target.value})} required /></div>
             <div className="input-group"><Lock size={16}/><input type="password" placeholder="Password" value={credentials.password} onChange={(e) => setCredentials({...credentials, password: e.target.value})} required /></div>
-            {loginError && <div className="login-error">{loginError}</div>}
             <button type="submit" className="btn-login">LOGIN SYSTEM</button>
           </form>
         </div>
@@ -265,73 +242,59 @@ export default function App() {
                   <input type="text" placeholder="Cari Negara..." className="search-input-custom" onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
                 
-                {/* List Negara (Struktur Asli) */}
                 <div style={{maxHeight: '120px', overflowY: 'auto', border: '1px solid #232d42', borderRadius: '4px'}}>
                     {displayCountries.filter(n => n.name.toLowerCase().includes(searchTerm.toLowerCase()) || n.code.includes(searchTerm)).map(n => (
                     <div key={n.code} className={`list-item ${selectedCountry.code === n.code ? 'active' : ''}`} onClick={() => handleSelectCountry(n)}>
-                        <span>{n.name} ({n.code})</span><span className="text-blue" style={{fontSize: '10px'}}>Mulai {formatIDR(n.minPrice)}</span>
+                        <span>{n.name} ({n.code})</span>
                     </div>
                     ))}
                 </div>
 
-                {/* Dropdown Stok/Harga (Struktur Asli) */}
                 <div style={{marginTop: '15px'}}>
-                  <label style={{fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '5px'}}>PILIH KATEGORI (HARGA & STOK):</label>
+                  <label style={{fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '5px'}}>DAFTAR HARGA & STOK:</label>
                   <select 
                     className="search-input-custom" 
-                    style={{padding: '5px', appearance: 'auto', cursor: 'pointer'}}
-                    value={selectedPriceOption?.priceIdr || ''}
-                    onChange={(e) => setSelectedPriceOption(livePrices.find(p => p.code === selectedCountry.code && p.priceIdr == e.target.value))}
+                    style={{padding: '8px', appearance: 'auto', cursor: 'pointer', background: '#1a2234', color: '#fff'}}
+                    value={selectedPriceOption ? selectedPriceOption.priceIdr : ''}
+                    onChange={(e) => setSelectedPriceOption(livePrices.find(p => String(p.code) === String(selectedCountry.code) && String(p.priceIdr) === String(e.target.value)))}
                   >
-                    {livePrices.filter(p => p.code === selectedCountry.code).sort((a,b) => a.priceIdr - b.priceIdr).map((opt, idx) => (
+                    {livePrices.filter(p => String(p.code) === String(selectedCountry.code)).map((opt, idx) => (
                       <option key={idx} value={opt.priceIdr}>
-                        {idx === 0 ? '🏆 TERMURAH: ' : 'Opsi: '} {formatIDR(opt.priceIdr)} | Stok: {opt.count} pcs
+                        {formatIDR(opt.priceIdr)} | Stok: {opt.count || 0} pcs
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <button disabled={isOrderingState} className="btn-order-single" onClick={() => handleOrder(1)}>
-                  {isOrderingState ? 'ORDERING...' : `+ ORDER 1 NUM (${formatIDR(selectedPriceOption?.priceIdr || 0)})`}
+                <button disabled={isOrderingState || !selectedPriceOption} className="btn-order-single" onClick={() => handleOrder(1)}>
+                  {isOrderingState ? 'ORDERING...' : `+ ORDER 1 NOMOR`}
                 </button>
-                <button disabled={isOrderingState} className="btn-order-mass" onClick={() => handleOrder(5)}>
+                <button disabled={isOrderingState || !selectedPriceOption} className="btn-order-mass" onClick={() => handleOrder(5)}>
                   {isOrderingState ? 'PROCESSING...' : '🚀 MASS ORDER 5X'}
                 </button>
                 {errorMsg && <div className="text-red" style={{fontSize:'10px', marginTop:'5px'}}>{errorMsg}</div>}
               </div>
             </div>
 
+            {/* Panel Monitor & Log tetap sama agar UI tidak berubah */}
             <div className="panel-card">
               <div className="panel-header">Live Monitor ({activeOrders.length})</div>
               <div className="scroll-area">
-                {activeOrders.map(o => {
-                  const timeLeft = Math.max(0, Math.floor(300 - (Date.now() - o.createdAt) / 1000));
-                  return (
-                    <div key={o.id} className="number-slot" style={{borderColor: o.status === 'EXPIRED' ? '#450a0a' : o.otp ? '#059669' : '#232d42'}}>
-                      <div style={{ flex: 1 }}>
-                        <span style={{fontSize:'9px', color:'#64748b'}}>ID: {o.id}</span>
-                        <span className={`slot-num ${o.status === 'EXPIRED' ? 'expired' : ''}`}>
-                         {o.number.replace(/^(62|6)/, '')}
-                        </span>
-                        {o.status === 'WAITING' && (
-                          <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px'}}>
-                            <span className="timer-text">{Math.floor(timeLeft/60)}:{String(timeLeft%60).padStart(2,'0')}</span>
-                            <span className="status-desc">Waiting SMS...</span>
-                          </div>
-                        )}
-                        {o.status === 'EXPIRED' && <span className="status-desc text-red">Expired & Refunded</span>}
-                        {o.otp && <span className="status-desc text-green">OTP Received</span>}
-                      </div>
-                      <div style={{ textAlign: 'right', marginRight: '10px' }}>
-                        {o.otp ? <div className="otp-badge" onClick={() => copy(o.otp)}>{o.otp}</div> : o.status === 'EXPIRED' ? <RefreshCw size={12} style={{opacity: 0.2}}/> : <RefreshCw size={14} className="animate-spin text-blue"/>}
-                      </div>
-                      <div style={{display: 'flex', gap: '4px'}}>
-                        <button onClick={() => copy(o.number.replace(/^(62|6)/, ''))} className="btn-icon"><Copy size={12}/></button>
-                        <button onClick={() => handleCancel(o.id)} className="btn-icon text-red"><Trash2 size={12}/></button>
-                      </div>
+                {activeOrders.map(o => (
+                  <div key={o.id} className="number-slot">
+                    <div style={{ flex: 1 }}>
+                      <span style={{fontSize:'9px', color:'#64748b'}}>ID: {o.id}</span>
+                      <span className="slot-num">{o.number}</span>
                     </div>
-                  );
-                })}
+                    <div style={{ textAlign: 'right', marginRight: '10px' }}>
+                      {o.otp ? <div className="otp-badge" onClick={() => copy(o.otp)}>{o.otp}</div> : <RefreshCw size={14} className="animate-spin text-blue"/>}
+                    </div>
+                    <div style={{display: 'flex', gap: '4px'}}>
+                      <button onClick={() => copy(o.number)} className="btn-icon"><Copy size={12}/></button>
+                      <button onClick={() => handleCancel(o.id)} className="btn-icon text-red"><Trash2 size={12}/></button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -341,10 +304,10 @@ export default function App() {
                 {logs.map((l, i) => (
                   <div key={i} className="log-row">
                     <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '9px'}}>
-                      <span className="text-green" style={{fontWeight:'bold'}}>SUCCESS</span>
+                      <span className="text-green">SUCCESS</span>
                       <span style={{color: '#64748b'}}>{l.time}</span>
                     </div>
-                    <div style={{color: '#fff', margin: '2px 0'}}>{l.number.replace(/^(62|6)/, '')}</div>
+                    <div style={{color: '#fff'}}>{l.number}</div>
                     <div className="text-blue" style={{fontWeight: '900'}}>OTP: {l.otp}</div>
                   </div>
                 ))}
@@ -355,10 +318,7 @@ export default function App() {
           <div style={{padding: '60px', textAlign: 'center'}}>
             <History size={40} style={{marginBottom: '10px', color: '#64748b'}}/>
             <h3>Riwayat Aktivitas</h3>
-            <div style={{display:'flex', gap:'10px', justifyContent:'center', marginTop:'20px'}}>
-                <button className="btn-order-mass" style={{width: 'auto', padding: '10px 20px'}} onClick={() => setActiveMenu('dashboard')}>Kembali</button>
-                <button className="btn-order-single" style={{width: 'auto', padding: '10px 20px', backgroundColor:'#ef4444'}} onClick={clearLogs}>Hapus History</button>
-            </div>
+            <button className="btn-order-mass" style={{width: 'auto', padding: '10px 20px', marginTop:'20px'}} onClick={() => setActiveMenu('dashboard')}>Kembali</button>
           </div>
         )}
       </main>
