@@ -23,7 +23,7 @@ export default function App() {
   const [activeOrders, setActiveOrders] = useState([]);
   const [logs, setLogs] = useState([]);
 
-  // UPDATE: DAFTAR NEGARA LENGKAP HERO-SMS
+  // DATABASE NEGARA HERO-SMS LENGKAP
   const countryNames = {
     "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines",
     "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania",
@@ -96,32 +96,32 @@ export default function App() {
       const res = await fetch(`${API_URL}/get-real-prices`);
       const data = await res.json();
       if (data.status === 'success' && data.prices) {
+        // Simpan semua data tanpa filter di awal
         setLivePrices(data.prices);
 
-        const unique = [];
-        const map = new Map();
-        for (const item of data.prices) {
-            if(!map.has(String(item.code))){
-                map.set(String(item.code), true);
-                unique.push({
-                    code: String(item.code),
-                    name: countryNames[String(item.code)] || `Negara ${item.code}`
-                });
-            }
-        }
-        
-        const sorted = unique.sort((a, b) => a.code === '6' ? -1 : b.code === '6' ? 1 : a.name.localeCompare(b.name));
+        // List Negara unik untuk sidebar
+        const countryMap = {};
+        data.prices.forEach(p => {
+          const code = String(p.code);
+          if (!countryMap[code]) {
+            countryMap[code] = { code, name: countryNames[code] || `Country ${code}` };
+          }
+        });
+
+        const sorted = Object.values(countryMap).sort((a, b) => 
+          a.code === '6' ? -1 : b.code === '6' ? 1 : a.name.localeCompare(b.name)
+        );
         setDisplayCountries(sorted);
 
-        const currentCode = String(selectedCountry.code);
-        const current = sorted.find(p => p.code === currentCode) || sorted[0];
-        if (current) {
-            setSelectedCountry({ code: current.code, name: current.name });
-            const options = data.prices.filter(p => String(p.code) === current.code);
-            setSelectedPriceOption(options[0] || null);
+        // Set default selection
+        const target = sorted.find(p => p.code === String(selectedCountry.code)) || sorted[0];
+        if (target) {
+          setSelectedCountry({ code: target.code, name: target.name });
+          const options = data.prices.filter(p => String(p.code) === String(target.code));
+          setSelectedPriceOption(options[0] || null);
         }
       }
-    } catch (err) { console.log("Gagal memuat harga"); }
+    } catch (err) { console.error("Fetch price failed"); }
     setIsLoading(false);
   };
 
@@ -136,10 +136,14 @@ export default function App() {
     isOrdering.current = true;
     setIsOrderingState(true); 
     setErrorMsg('');
+    
+    // Pastikan pakai field harga yang tersedia (priceIdr / price / cost)
+    const orderPrice = selectedPriceOption.priceIdr || selectedPriceOption.price || selectedPriceOption.cost;
+
     for (let i = 0; i < qty; i++) {
       try {
         const op = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
-        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${selectedPriceOption.priceIdr}${op}`);
+        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${orderPrice}${op}`);
         const data = await res.json();
         if (data.status === 'success') {
           setActiveOrders(prev => [{ id: data.id, number: data.number, otp: null, status: 'WAITING', createdAt: Date.now() }, ...prev]);
@@ -181,7 +185,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [user, activeOrders]);
 
-  const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
+  const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
   const copy = (t) => { if (t) navigator.clipboard.writeText(t); };
 
   if (!user) {
@@ -251,18 +255,23 @@ export default function App() {
                 </div>
 
                 <div style={{marginTop: '15px'}}>
-                  <label style={{fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '5px'}}>DAFTAR HARGA & STOK:</label>
+                  <label style={{fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '5px'}}>PILIH LAYANAN (HARGA & STOK):</label>
                   <select 
                     className="search-input-custom" 
                     style={{padding: '8px', appearance: 'auto', cursor: 'pointer', background: '#1a2234', color: '#fff'}}
-                    value={selectedPriceOption ? selectedPriceOption.priceIdr : ''}
-                    onChange={(e) => setSelectedPriceOption(livePrices.find(p => String(p.code) === String(selectedCountry.code) && String(p.priceIdr) === String(e.target.value)))}
+                    value={livePrices.indexOf(selectedPriceOption)}
+                    onChange={(e) => setSelectedPriceOption(livePrices[parseInt(e.target.value)])}
                   >
-                    {livePrices.filter(p => String(p.code) === String(selectedCountry.code)).map((opt, idx) => (
-                      <option key={idx} value={opt.priceIdr}>
-                        {formatIDR(opt.priceIdr)} | Stok: {opt.count || 0} pcs
-                      </option>
-                    ))}
+                    {livePrices.map((opt, idx) => {
+                      if (String(opt.code) !== String(selectedCountry.code)) return null;
+                      const price = opt.priceIdr || opt.price || opt.cost || 0;
+                      const stock = opt.count || opt.stock || opt.quantity || 0;
+                      return (
+                        <option key={idx} value={idx}>
+                          {formatIDR(price)} | Stok: {stock} pcs
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -276,7 +285,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Panel Monitor & Log tetap sama agar UI tidak berubah */}
             <div className="panel-card">
               <div className="panel-header">Live Monitor ({activeOrders.length})</div>
               <div className="scroll-area">
