@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
-import { Zap, Smartphone, Search, Copy, Trash2, History, RefreshCw, CheckCircle, Lock, User, LogOut } from 'lucide-react';
+import { Zap, Smartphone, Search, Copy, Trash2, History, RefreshCw, Search as SearchIcon, Lock, User, LogOut } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://wildanrobians29-otp-gateway-api.hf.space';
 
@@ -10,7 +10,7 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [balance, setBalance] = useState(0); 
-  const [livePrices, setLivePrices] = useState([]);
+  const [rawPrices, setRawPrices] = useState({}); 
   const [displayCountries, setDisplayCountries] = useState([]);
   const [selectedCountry, setSelectedCountry] = useState({ code: '6', name: 'Indonesia' });
   const [selectedPriceOption, setSelectedPriceOption] = useState(null);
@@ -23,28 +23,11 @@ export default function App() {
   const [activeOrders, setActiveOrders] = useState([]);
   const [logs, setLogs] = useState([]);
 
-  // DATABASE NEGARA HERO-SMS LENGKAP
   const countryNames = {
     "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines",
     "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania",
-    "10": "Vietnam", "11": "Kyrgyzstan", "12": "USA", "13": "Israel", "14": "Hong Kong",
-    "15": "Poland", "16": "United Kingdom", "17": "Madagascar", "18": "Congo", "19": "Nigeria",
-    "20": "Macao", "21": "Egypt", "22": "India", "23": "Ireland", "24": "Cambodia",
-    "25": "Laos", "26": "Haiti", "27": "Ivory Coast", "28": "Gambia", "29": "Serbia",
-    "30": "Yemen", "31": "South Africa", "32": "Romania", "33": "Colombia", "34": "Estonia",
-    "35": "Azerbaijan", "36": "Canada", "37": "Morocco", "38": "Ghana", "39": "Argentina",
-    "40": "Uzbekistan", "41": "Cameroon", "42": "Chad", "43": "Germany", "44": "Lithuania",
-    "45": "Croatia", "46": "Sweden", "47": "Iraq", "48": "Netherlands", "49": "Latvia",
-    "50": "Austria", "51": "Belarus", "52": "Thailand", "53": "Saudi Arabia", "54": "Mexico",
-    "55": "Taiwan", "56": "Spain", "57": "Iran", "58": "Algeria", "59": "Slovenia",
-    "60": "Bangladesh", "61": "Senegal", "62": "Turkey", "63": "Czech Republic", "64": "Sri Lanka",
-    "65": "Peru", "66": "Pakistan", "67": "New Zealand", "68": "Guinea", "69": "Mali",
-    "70": "Venezuela", "71": "Ethiopia", "72": "Mongolia", "73": "Brazil", "74": "Afghanistan",
-    "75": "Uganda", "76": "Angola", "77": "Cyprus", "78": "France", "79": "Papua New Guinea",
-    "80": "Mozambique", "81": "Nepal", "82": "Singapore", "83": "Bahrain", "84": "Armenia",
-    "85": "Moldova", "86": "UAE", "87": "Burkina Faso", "88": "Tunisia", "89": "Mauritius",
-    "90": "Liberia", "91": "Georgia", "92": "Greece", "93": "Portugal", "144": "Benin", 
-    "145": "Mauritania", "146": "Sierra Leone", "187": "USA (Virtual)"
+    "10": "Vietnam", "12": "USA", "15": "Poland", "16": "United Kingdom", "22": "India",
+    "52": "Thailand", "62": "Turkey", "73": "Brazil", "82": "Singapore", "187": "USA (Virtual)"
   };
 
   const handleLogin = async (e) => {
@@ -63,7 +46,7 @@ export default function App() {
         if (data.status === 'success') {
             localStorage.setItem('logged_user', data.user.username);
             setUser(data.user.username);
-        } else { setLoginError('❌ Username atau Password salah!'); }
+        } else { setLoginError('❌ Login Gagal!'); }
     } catch (err) { setLoginError('❌ Server Error!'); }
   };
   
@@ -87,47 +70,51 @@ export default function App() {
       const res = await fetch(`${API_URL}/get-user-balance?username=${user}`);
       const data = await res.json();
       if (data.status === 'success') setBalance(parseFloat(data.balance));
-    } catch (err) { console.log("Balance offline"); }
+    } catch (err) {}
   };
 
   const fetchRealPrices = async () => {
     setIsLoading(true);
     try {
+      // Mengambil data dari action=getPrices
       const res = await fetch(`${API_URL}/get-real-prices`);
       const data = await res.json();
+      
       if (data.status === 'success' && data.prices) {
-        // Simpan semua data tanpa filter di awal
-        setLivePrices(data.prices);
+        const priceData = data.prices;
+        setRawPrices(priceData);
 
-        // List Negara unik untuk sidebar
-        const countryMap = {};
-        data.prices.forEach(p => {
-          const code = String(p.code);
-          if (!countryMap[code]) {
-            countryMap[code] = { code, name: countryNames[code] || `Country ${code}` };
-          }
-        });
+        // Bedah Key Object untuk jadi list negara
+        const countries = Object.keys(priceData).map(code => ({
+          code: String(code),
+          name: countryNames[code] || `Country ${code}`
+        })).sort((a, b) => a.code === '6' ? -1 : b.code === '6' ? 1 : a.name.localeCompare(b.name));
 
-        const sorted = Object.values(countryMap).sort((a, b) => 
-          a.code === '6' ? -1 : b.code === '6' ? 1 : a.name.localeCompare(b.name)
-        );
-        setDisplayCountries(sorted);
-
-        // Set default selection
-        const target = sorted.find(p => p.code === String(selectedCountry.code)) || sorted[0];
-        if (target) {
-          setSelectedCountry({ code: target.code, name: target.name });
-          const options = data.prices.filter(p => String(p.code) === String(target.code));
-          setSelectedPriceOption(options[0] || null);
-        }
+        setDisplayCountries(countries);
+        
+        // Auto-select opsi harga pertama dari negara terpilih
+        const initialOptions = parseOptions(priceData, selectedCountry.code);
+        if (initialOptions.length > 0) setSelectedPriceOption(initialOptions[0]);
       }
-    } catch (err) { console.error("Fetch price failed"); }
+    } catch (err) { console.error("API Error"); }
     setIsLoading(false);
   };
 
+  // Helper untuk mengubah { "15.00": 100 } jadi array [{price: 15.00, count: 100}]
+  const parseOptions = (allPrices, countryCode) => {
+    const countryData = allPrices[countryCode];
+    if (countryData && countryData['wa']) {
+      return Object.entries(countryData['wa']).map(([prc, cnt]) => ({
+        price: parseFloat(prc),
+        count: parseInt(cnt)
+      })).sort((a, b) => a.price - b.price);
+    }
+    return [];
+  };
+
   const handleSelectCountry = (country) => {
-    setSelectedCountry({ code: country.code, name: country.name });
-    const options = livePrices.filter(p => String(p.code) === String(country.code));
+    setSelectedCountry(country);
+    const options = parseOptions(rawPrices, country.code);
     setSelectedPriceOption(options[0] || null);
   };
 
@@ -137,18 +124,16 @@ export default function App() {
     setIsOrderingState(true); 
     setErrorMsg('');
     
-    // Pastikan pakai field harga yang tersedia (priceIdr / price / cost)
-    const orderPrice = selectedPriceOption.priceIdr || selectedPriceOption.price || selectedPriceOption.cost;
-
     for (let i = 0; i < qty; i++) {
       try {
         const op = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
-        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${orderPrice}${op}`);
+        // Menggunakan action=getNumber dengan parameter harga & negara
+        const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${selectedPriceOption.price}${op}`);
         const data = await res.json();
         if (data.status === 'success') {
           setActiveOrders(prev => [{ id: data.id, number: data.number, otp: null, status: 'WAITING', createdAt: Date.now() }, ...prev]);
           fetchBalance();
-          if (qty > 1) await new Promise(r => setTimeout(r, 1000));
+          if (qty > 1) await new Promise(r => setTimeout(r, 800));
         } else { setErrorMsg(`⚠️ ${data.message}`); break; }
       } catch (err) { setErrorMsg("⚠️ ERROR SERVER!"); break; }
     }
@@ -158,13 +143,14 @@ export default function App() {
 
   const handleCancel = async (id) => {
     try {
+      // Menggunakan action=setStatus status=8 (cancel)
       const res = await fetch(`${API_URL}/cancel-order?id=${id}`);
       const data = await res.json();
       if (data.status === 'success') {
         setActiveOrders(prev => prev.filter(x => x.id !== id));
         fetchBalance(); 
       }
-    } catch (e) { console.error("Cancel failed"); }
+    } catch (e) {}
   };
 
   useEffect(() => {
@@ -172,6 +158,7 @@ export default function App() {
     const interval = setInterval(async () => {
       activeOrders.filter(o => o.status === 'WAITING').forEach(async (order) => {
         try {
+          // Menggunakan action=getStatus
           const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
           const data = await res.json();
           if (data.status === 'SUCCESS') {
@@ -181,12 +168,15 @@ export default function App() {
           }
         } catch (e) {}
       });
-    }, 5000);
+    }, 4000);
     return () => clearInterval(interval);
   }, [user, activeOrders]);
 
   const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0);
   const copy = (t) => { if (t) navigator.clipboard.writeText(t); };
+
+  // Data harga untuk dropdown
+  const currentOptions = parseOptions(rawPrices, selectedCountry.code);
 
   if (!user) {
     return (
@@ -242,7 +232,7 @@ export default function App() {
                 </div>
                 
                 <div style={{position: 'relative', margin: '15px 0 8px 0'}}>
-                  <Search size={12} style={{position: 'absolute', left: '8px', top: '8px', color: '#64748b'}}/>
+                  <SearchIcon size={12} style={{position: 'absolute', left: '8px', top: '8px', color: '#64748b'}}/>
                   <input type="text" placeholder="Cari Negara..." className="search-input-custom" onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
                 
@@ -255,23 +245,18 @@ export default function App() {
                 </div>
 
                 <div style={{marginTop: '15px'}}>
-                  <label style={{fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '5px'}}>PILIH LAYANAN (HARGA & STOK):</label>
+                  <label style={{fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '5px'}}>LAYANAN (HARGA & STOK):</label>
                   <select 
                     className="search-input-custom" 
                     style={{padding: '8px', appearance: 'auto', cursor: 'pointer', background: '#1a2234', color: '#fff'}}
-                    value={livePrices.indexOf(selectedPriceOption)}
-                    onChange={(e) => setSelectedPriceOption(livePrices[parseInt(e.target.value)])}
+                    value={selectedPriceOption ? selectedPriceOption.price : ''}
+                    onChange={(e) => setSelectedPriceOption(currentOptions.find(o => o.price === parseFloat(e.target.value)))}
                   >
-                    {livePrices.map((opt, idx) => {
-                      if (String(opt.code) !== String(selectedCountry.code)) return null;
-                      const price = opt.priceIdr || opt.price || opt.cost || 0;
-                      const stock = opt.count || opt.stock || opt.quantity || 0;
-                      return (
-                        <option key={idx} value={idx}>
-                          {formatIDR(price)} | Stok: {stock} pcs
-                        </option>
-                      );
-                    })}
+                    {currentOptions.length > 0 ? currentOptions.map((opt, idx) => (
+                      <option key={idx} value={opt.price}>
+                        {formatIDR(opt.price)} | Stok: {opt.count} pcs
+                      </option>
+                    )) : <option>Stok Kosong / Tidak Ada Layanan</option>}
                   </select>
                 </div>
 
