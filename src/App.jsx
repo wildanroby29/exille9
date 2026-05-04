@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
-import { Zap, Smartphone, Search, Copy, Trash2, History, RefreshCw, CheckCircle, Lock, User, LogOut } from 'lucide-react';
+import { Zap, Smartphone, Search, Copy, Trash2, History, RefreshCw, CheckCircle, Lock, User, LogOut, Clock, Globe, ShieldCheck } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://wildanrobians29-otp-gateway-api.hf.space';
 
 export default function App() {
+  // --- STATE MANAGEMENT ---
   const [user, setUser] = useState(() => localStorage.getItem('logged_user') || '');
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [balance, setBalance] = useState(0); 
-  const [livePrices, setLivePrices] = useState([]); // Master data harga
-  const [displayCountries, setDisplayCountries] = useState([]); // Data negara unik untuk list
+  const [livePrices, setLivePrices] = useState([]);
+  const [displayCountries, setDisplayCountries] = useState([]);
   const [selectedCountry, setSelectedCountry] = useState({ code: '6', name: 'Indonesia' });
-  const [selectedPriceOption, setSelectedPriceOption] = useState(null); // Opsi harga aktif
+  const [selectedPriceOption, setSelectedPriceOption] = useState(null);
   const [selectedProvider, setSelectedProvider] = useState('Any');
   const [searchTerm, setSearchTerm] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -23,7 +24,32 @@ export default function App() {
   const [activeOrders, setActiveOrders] = useState([]);
   const [logs, setLogs] = useState([]);
 
-  // --- LOGIN ---
+  // --- DATABASE NEGARA HERO-SMS LENGKAP ---
+  const countryNames = {
+    "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines",
+    "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania",
+    "10": "Vietnam", "11": "Kyrgyzstan", "12": "USA", "13": "Israel", "14": "Hong Kong",
+    "15": "Poland", "16": "United Kingdom", "17": "Madagascar", "18": "Congo", "19": "Nigeria",
+    "20": "Macao", "21": "Egypt", "22": "India", "23": "Ireland", "24": "Cambodia",
+    "25": "Laos", "26": "Haiti", "27": "Ivory Coast", "28": "Gambia", "29": "Serbia",
+    "30": "Yemen", "31": "South Africa", "32": "Romania", "33": "Colombia", "34": "Estonia",
+    "35": "Azerbaijan", "36": "Canada", "37": "Morocco", "38": "Ghana", "39": "Argentina",
+    "40": "Uzbekistan", "41": "Cameroon", "42": "Chad", "43": "Germany", "44": "Lithuania",
+    "45": "Croatia", "46": "Sweden", "47": "Iraq", "48": "Netherlands", "49": "Latvia",
+    "50": "Austria", "51": "Belarus", "52": "Thailand", "53": "Saudi Arabia", "54": "Mexico",
+    "55": "Taiwan", "56": "Spain", "57": "Iran", "58": "Algeria", "59": "Slovenia",
+    "60": "Bangladesh", "61": "Senegal", "62": "Turkey", "63": "Czech Republic", "64": "Sri Lanka",
+    "65": "Peru", "66": "Pakistan", "67": "New Zealand", "68": "Guinea", "69": "Mali",
+    "70": "Venezuela", "71": "Ethiopia", "72": "Mongolia", "73": "Brazil", "74": "Afghanistan",
+    "75": "Uganda", "76": "Angola", "77": "Cyprus", "78": "France", "79": "Papua New Guinea",
+    "80": "Mozambique", "81": "Nepal", "82": "Singapore", "83": "Bahrain", "84": "Armenia",
+    "85": "Moldova", "86": "UAE", "87": "Burkina Faso", "88": "Tunisia", "89": "Mauritius",
+    "90": "Liberia", "91": "Georgia", "92": "Greece", "93": "Portugal", "94": "Dortmund",
+    "95": "Suriname", "96": "Burundi", "144": "Benin", "145": "Mauritania", "146": "Sierra Leone",
+    "187": "USA (Virtual)"
+  };
+
+  // --- AUTHENTICATION ---
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -40,8 +66,8 @@ export default function App() {
         if (data.status === 'success') {
             localStorage.setItem('logged_user', data.user.username);
             setUser(data.user.username);
-        } else { setLoginError('❌ Username atau Password salah!'); }
-    } catch (err) { setLoginError('❌ Server Error!'); }
+        } else { setLoginError('❌ Akses Ditolak: Username/Password Salah!'); }
+    } catch (err) { setLoginError('❌ Server Gateway Offline!'); }
   };
   
   const handleLogout = () => {
@@ -50,46 +76,29 @@ export default function App() {
     setCredentials({ username: '', password: '' });
   };
 
-  // --- DATA LOADING ---
-  useEffect(() => {
-    if (user) {
-      setActiveOrders(JSON.parse(localStorage.getItem(`orders_${user}`)) || []);
-      setLogs(JSON.parse(localStorage.getItem(`logs_${user}`)) || []);
-      fetchBalance();
-      fetchRealPrices();
-    }
-  }, [user]);
-
-  useEffect(() => { if (user) localStorage.setItem(`orders_${user}`, JSON.stringify(activeOrders)); }, [activeOrders, user]);
-  useEffect(() => { if (user) localStorage.setItem(`logs_${user}`, JSON.stringify(logs)); }, [logs, user]);
-
+  // --- DATA FETCHING & SYNC ---
   const fetchBalance = async () => {
     if (!user) return;
     try {
       const res = await fetch(`${API_URL}/get-user-balance?username=${user}`);
       const data = await res.json();
       if (data.status === 'success') setBalance(parseFloat(data.balance));
-    } catch (err) { console.log("Balance offline"); }
+    } catch (err) { console.log("Balance Sync Error"); }
   };
 
   const fetchRealPrices = async () => {
+    setIsLoading(true);
     try {
       const res = await fetch(`${API_URL}/get-real-prices`);
       const data = await res.json();
       if (data.status === 'success') {
-        const names = {
-          "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines",
-          "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania",
-          "10": "Vietnam", "11": "Kyrgyzstan", "12": "USA", "13": "Israel", "14": "Hong Kong",
-          "15": "Poland", "16": "United Kingdom", "17": "Madagascar", "18": "Congo", "19": "Nigeria",
-          "22": "India", "31": "South Africa", "32": "Romania", "52": "Thailand", "56": "Spain",
-          "62": "Turkey", "73": "Brazil", "82": "Singapore", "86": "UAE"
-        };
-
-        const allData = data.prices.map(p => ({ ...p, name: names[p.code] || `Negara ${p.code}` }));
+        const allData = data.prices.map(p => ({ 
+            ...p, 
+            name: countryNames[p.code] || `Negara ${p.code}`,
+            count: p.count || 0 
+        }));
         setLivePrices(allData);
 
-        // Grouping unik untuk list negara
         const unique = allData.reduce((acc, curr) => {
           if (!acc.find(x => x.code === curr.code)) {
             const options = allData.filter(ap => ap.code === curr.code);
@@ -102,47 +111,65 @@ export default function App() {
         const sorted = unique.sort((a, b) => a.code === '6' ? -1 : b.code === '6' ? 1 : a.name.localeCompare(b.name));
         setDisplayCountries(sorted);
 
-        // Default selection
-        const currentIndo = sorted.find(p => p.code === '6') || sorted[0];
-        if (currentIndo) {
-            setSelectedCountry({ code: currentIndo.code, name: currentIndo.name });
-            const options = allData.filter(p => p.code === currentIndo.code).sort((a, b) => a.priceIdr - b.priceIdr);
+        const current = sorted.find(p => p.code === selectedCountry.code) || sorted[0];
+        if (current) {
+            const options = allData.filter(p => p.code === current.code).sort((a, b) => a.priceIdr - b.priceIdr);
             setSelectedPriceOption(options[0]);
         }
       }
-    } catch (err) { console.log("Gagal memuat harga"); }
+    } catch (err) { console.log("Price Sync Error"); }
+    setIsLoading(false);
   };
 
-  const handleSelectCountry = (country) => {
-    setSelectedCountry({ code: country.code, name: country.name });
-    const options = livePrices.filter(p => p.code === country.code).sort((a, b) => a.priceIdr - b.priceIdr);
-    setSelectedPriceOption(options[0]);
-  };
-  
-  // --- ORDER LOGIC ---
+  // --- PERSISTENCE ---
+  useEffect(() => {
+    if (user) {
+      setActiveOrders(JSON.parse(localStorage.getItem(`orders_${user}`)) || []);
+      setLogs(JSON.parse(localStorage.getItem(`logs_${user}`)) || []);
+      fetchBalance();
+      fetchRealPrices();
+    }
+  }, [user]);
+
+  useEffect(() => { if (user) localStorage.setItem(`orders_${user}`, JSON.stringify(activeOrders)); }, [activeOrders, user]);
+  useEffect(() => { if (user) localStorage.setItem(`logs_${user}`, JSON.stringify(logs)); }, [logs, user]);
+
+  // --- ORDER SYSTEM ---
   const handleOrder = async (qty = 1) => {
     if (isOrdering.current || !selectedPriceOption) return;
     isOrdering.current = true;
     setIsOrderingState(true); 
     setErrorMsg('');
+    
     for (let i = 0; i < qty; i++) {
       try {
         const op = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
-        // Kirim priceIdr yang dipilih dari dropdown
         const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${selectedPriceOption.priceIdr}${op}`);
         const data = await res.json();
+        
         if (data.status === 'success') {
-          setActiveOrders(prev => [{ id: data.id, number: data.number, otp: null, status: 'WAITING', createdAt: Date.now() }, ...prev]);
+          setActiveOrders(prev => [{ 
+              id: data.id, 
+              number: data.number, 
+              otp: null, 
+              status: 'WAITING', 
+              createdAt: Date.now() 
+          }, ...prev]);
           fetchBalance();
-          if (qty > 1) await new Promise(r => setTimeout(r, 1000));
-        } else { setErrorMsg(`⚠️ ${data.message}`); break; }
-      } catch (err) { setErrorMsg("⚠️ ERROR SERVER!"); break; }
+          if (qty > 1) await new Promise(r => setTimeout(r, 1200));
+        } else { 
+            setErrorMsg(`⚠️ Gagal: ${data.message}`); 
+            break; 
+        }
+      } catch (err) { 
+          setErrorMsg("⚠️ Error Koneksi API!"); 
+          break; 
+      }
     }
     setIsOrderingState(false);
     isOrdering.current = false;
   };
 
-  // --- CANCEL & REFUND LOGIC ---
   const handleCancel = async (id) => {
     try {
       const res = await fetch(`${API_URL}/cancel-order?id=${id}`);
@@ -151,20 +178,16 @@ export default function App() {
         setActiveOrders(prev => prev.filter(x => x.id !== id));
         fetchBalance(); 
       }
-    } catch (e) { console.error("Cancel failed"); }
+    } catch (e) { console.error("Cancel Process Error"); }
   };
 
-  const clearLogs = () => {
-    setLogs([]);
-    localStorage.removeItem(`logs_${user}`);
-  };
-
-  // --- BACKGROUND CHECKER ---
+  // --- AUTO CHECKER OTP ---
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(async () => {
+      // Check Expiration
       setActiveOrders(prev => {
-        const updated = prev.map(o => {
+        return prev.map(o => {
           const isTooOld = (Date.now() - o.createdAt) / 1000 > 300;
           if (!o.otp && isTooOld && o.status === 'WAITING') {
             fetch(`${API_URL}/cancel-order?id=${o.id}`).then(() => fetchBalance());
@@ -172,16 +195,21 @@ export default function App() {
           }
           return o;
         });
-        return updated;
       });
 
+      // Check OTP Status
       activeOrders.filter(o => o.status === 'WAITING').forEach(async (order) => {
         try {
           const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
           const data = await res.json();
           if (data.status === 'SUCCESS') {
             setActiveOrders(prev => prev.map(o => o.id === order.id ? { ...o, otp: data.code, status: 'SUCCESS' } : o));
-            setLogs(l => [{ number: order.number, otp: data.code, time: new Date().toLocaleTimeString() }, ...l].slice(0, 50));
+            setLogs(l => [{ 
+                number: order.number, 
+                otp: data.code, 
+                time: new Date().toLocaleTimeString(),
+                country: selectedCountry.name 
+            }, ...l].slice(0, 50));
             fetchBalance();
           }
         } catch (e) {}
@@ -190,163 +218,239 @@ export default function App() {
     return () => clearInterval(interval);
   }, [user, activeOrders]);
 
+  // --- HELPERS ---
   const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
-  const copy = (t) => { if (t) navigator.clipboard.writeText(t); };
+  const copyToClipboard = (text) => {
+    if (text) {
+      navigator.clipboard.writeText(text);
+      // Optional: Add toast notification here
+    }
+  };
 
+  // --- RENDER LOGIN ---
   if (!user) {
     return (
       <div className="login-screen">
         <div className="login-box">
-          <Zap size={48} className="text-blue" fill="currentColor" style={{marginBottom: '10px'}}/>
-          <h2> E X I L L E 9</h2>
+          <div className="brand-header">
+            <Zap size={40} className="text-blue" fill="currentColor"/>
+            <h1>E X I L L E 9</h1>
+            <p>OTP Gateway System v2.1</p>
+          </div>
           <form onSubmit={handleLogin}>
-            <div className="input-group"><User size={16}/><input type="text" placeholder="Username" value={credentials.username} onChange={(e) => setCredentials({...credentials, username: e.target.value})} required /></div>
-            <div className="input-group"><Lock size={16}/><input type="password" placeholder="Password" value={credentials.password} onChange={(e) => setCredentials({...credentials, password: e.target.value})} required /></div>
-            {loginError && <div className="login-error">{loginError}</div>}
-            <button type="submit" className="btn-login">LOGIN SYSTEM</button>
+            <div className="input-field">
+              <User size={18}/>
+              <input type="text" placeholder="Username" value={credentials.username} onChange={(e) => setCredentials({...credentials, username: e.target.value})} required />
+            </div>
+            <div className="input-field">
+              <Lock size={18}/>
+              <input type="password" placeholder="Password" value={credentials.password} onChange={(e) => setCredentials({...credentials, password: e.target.value})} required />
+            </div>
+            {loginError && <div className="error-alert">{loginError}</div>}
+            <button type="submit" className="btn-primary-login">AUTHORIZE SYSTEM</button>
           </form>
+          <div className="login-footer">© 2026 Powered by Exille AI Protocol</div>
         </div>
       </div>
     );
   }
 
+  // --- RENDER DASHBOARD ---
   return (
     <div className="app-container">
       <aside className="sidebar">
-        <div className="sidebar-logo"><Zap size={16} className="text-blue" fill="currentColor"/> E X I L L E 9</div>
-        <div className="user-profile-badge"><div className="avatar">{user[0].toUpperCase()}</div><span>{user.toUpperCase()}</span></div>
-        <nav style={{flex: 1}}>
-          <div className={`list-item ${activeMenu === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveMenu('dashboard')}><Smartphone size={14}/> Dashboard</div>
-          <div className={`list-item ${activeMenu === 'history' ? 'active' : ''}`} onClick={() => setActiveMenu('history')}><History size={14}/> History</div>
+        <div className="sidebar-brand">
+          <Zap size={20} className="text-blue" fill="currentColor"/>
+          <span>EXILLE9 CORE</span>
+        </div>
+        
+        <div className="sidebar-user">
+          <div className="user-avatar">{user[0].toUpperCase()}</div>
+          <div className="user-info">
+            <span className="user-name">{user.toUpperCase()}</span>
+            <span className="user-status"><ShieldCheck size={10}/> Verified User</span>
+          </div>
+        </div>
+
+        <nav className="sidebar-nav">
+          <div className={`nav-item ${activeMenu === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveMenu('dashboard')}>
+            <Smartphone size={16}/> <span>Dashboard</span>
+          </div>
+          <div className={`nav-item ${activeMenu === 'history' ? 'active' : ''}`} onClick={() => setActiveMenu('history')}>
+            <History size={16}/> <span>History Log</span>
+          </div>
         </nav>
-        <div className="logout-btn" onClick={handleLogout}><LogOut size={14}/> Logout</div>
+
+        <div className="sidebar-footer">
+          <button className="btn-logout" onClick={handleLogout}>
+            <LogOut size={16}/> Keluar Sesi
+          </button>
+        </div>
       </aside>
 
       <main className="main-content">
-        <header className="header-top">
-          <div className="status-bar">
-            <span>USER: <b className="text-blue">{user.toUpperCase()}</b></span>
-            <button onClick={() => { fetchBalance(); fetchRealPrices(); }} className="refresh-btn-small">
-              <RefreshCw size={10} className={isLoading ? 'animate-spin' : ''}/> REFRESH
-            </button>
+        <header className="top-nav">
+          <div className="nav-left">
+            <h2>{activeMenu === 'dashboard' ? 'Control Panel' : 'System History'}</h2>
           </div>
-          <div className="balance-box" style={{textAlign: 'right'}}>
-            <div style={{fontSize: '9px', color: '#64748b'}}>SALDO USER (IDR)</div>
-            <div className="balance-amt">{formatIDR(balance)}</div>
+          <div className="nav-right">
+            <div className="balance-display">
+              <span className="label">BALANCE IDR</span>
+              <span className="value">{formatIDR(balance)}</span>
+            </div>
+            <button className="btn-refresh-circle" onClick={() => { fetchBalance(); fetchRealPrices(); }} disabled={isLoading}>
+              <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''}/>
+            </button>
           </div>
         </header>
 
         {activeMenu === 'dashboard' ? (
-          <div className="dashboard-wrapper">
-            <div className="panel-card">
-              <div className="panel-header">Settings Hero-SMS</div>
-              <div className="scroll-area">
-                <div className="provider-grid">
-                  {['Any', 'Telkomsel', 'Indosat', 'XL', 'Axis', 'Three', 'Smartfren'].map(p => (
-                    <button key={p} className={`provider-btn ${selectedProvider === p ? 'active' : ''}`} onClick={() => setSelectedProvider(p)}>{p}</button>
+          <div className="content-grid">
+            {/* Left: Configuration */}
+            <div className="card-panel config-panel">
+              <div className="card-header">
+                <Globe size={16}/> <span>Setup Gateway Hero-SMS</span>
+              </div>
+              <div className="card-body">
+                <label className="input-label">PILIH OPERATOR</label>
+                <div className="operator-selector">
+                  {['Any', 'Telkomsel', 'Indosat', 'XL', 'Axis', 'Three', 'Smartfren'].map(op => (
+                    <button key={op} className={selectedProvider === op ? 'active' : ''} onClick={() => setSelectedProvider(op)}>{op}</button>
                   ))}
                 </div>
-                
-                <div style={{position: 'relative', margin: '15px 0 8px 0'}}>
-                  <Search size={12} style={{position: 'absolute', left: '8px', top: '8px', color: '#64748b'}}/>
-                  <input type="text" placeholder="Cari Negara..." className="search-input-custom" onChange={(e) => setSearchTerm(e.target.value)} />
+
+                <label className="input-label">CARI & PILIH NEGARA</label>
+                <div className="search-box">
+                  <Search size={14}/>
+                  <input type="text" placeholder="Ketik nama negara..." onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
                 
-                {/* List Negara */}
-                <div style={{maxHeight: '120px', overflowY: 'auto', border: '1px solid #232d42', borderRadius: '4px'}}>
-                    {displayCountries.filter(n => n.name.toLowerCase().includes(searchTerm.toLowerCase()) || n.code.includes(searchTerm)).map(n => (
-                    <div key={n.code} className={`list-item ${selectedCountry.code === n.code ? 'active' : ''}`} onClick={() => handleSelectCountry(n)}>
-                        <span>{n.name} ({n.code})</span><span className="text-blue" style={{fontSize: '10px'}}>Mulai {formatIDR(n.minPrice)}</span>
-                    </div>
-                    ))}
+                <div className="country-list-container">
+                  {displayCountries
+                    .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.code.includes(searchTerm))
+                    .map(c => (
+                      <div key={c.code} className={`country-item ${selectedCountry.code === c.code ? 'selected' : ''}`} onClick={() => {
+                        setSelectedCountry({ code: c.code, name: c.name });
+                        const opts = livePrices.filter(p => p.code === c.code).sort((a,b) => a.priceIdr - b.priceIdr);
+                        setSelectedPriceOption(opts[0]);
+                      }}>
+                        <span className="c-name">{c.name}</span>
+                        <span className="c-id">ID: {c.code}</span>
+                      </div>
+                  ))}
                 </div>
 
-                {/* Dropdown Kategori Harga */}
-                <div style={{marginTop: '15px'}}>
-                  <label style={{fontSize: '9px', color: '#64748b', display: 'block', marginBottom: '5px'}}>PILIH KATEGORI HARGA:</label>
-                  <select 
-                    className="search-input-custom" 
-                    style={{padding: '5px', appearance: 'auto', cursor: 'pointer'}}
-                    value={selectedPriceOption?.priceIdr || ''}
-                    onChange={(e) => setSelectedPriceOption(livePrices.find(p => p.code === selectedCountry.code && p.priceIdr == e.target.value))}
-                  >
-                    {livePrices.filter(p => p.code === selectedCountry.code).sort((a,b) => a.priceIdr - b.priceIdr).map((opt, idx) => (
+                <label className="input-label">OPSI HARGA & STOK (SINKRON)</label>
+                <select 
+                  className="custom-select"
+                  value={selectedPriceOption?.priceIdr || ''}
+                  onChange={(e) => setSelectedPriceOption(livePrices.find(p => p.code === selectedCountry.code && p.priceIdr == e.target.value))}
+                >
+                  {livePrices
+                    .filter(p => p.code === selectedCountry.code)
+                    .sort((a, b) => a.priceIdr - b.priceIdr)
+                    .map((opt, idx) => (
                       <option key={idx} value={opt.priceIdr}>
-                        {idx === 0 ? '🔥 TERMURAH: ' : 'Kategori: '} {formatIDR(opt.priceIdr)}
+                        {idx === 0 ? '💎 TERMURAH: ' : 'Kategori: '} {formatIDR(opt.priceIdr)} — Stok: {opt.count} pcs
                       </option>
-                    ))}
-                  </select>
+                  ))}
+                </select>
+
+                <div className="action-buttons">
+                  <button className="btn-order-single" onClick={() => handleOrder(1)} disabled={isOrderingState}>
+                    {isOrderingState ? 'PROCESSING...' : `ORDER 1 NOMOR`}
+                  </button>
+                  <button className="btn-order-multi" onClick={() => handleOrder(5)} disabled={isOrderingState}>
+                    MASS ORDER 5X
+                  </button>
                 </div>
-
-                <button disabled={isOrderingState} className="btn-order-single" onClick={() => handleOrder(1)}>
-                  {isOrderingState ? 'ORDERING...' : `+ ORDER 1 NUM (${formatIDR(selectedPriceOption?.priceIdr || 0)})`}
-                </button>
-                <button disabled={isOrderingState} className="btn-order-mass" onClick={() => handleOrder(5)}>
-                  {isOrderingState ? 'PROCESSING...' : '🚀 MASS ORDER 5X'}
-                </button>
-                {errorMsg && <div className="text-red" style={{fontSize:'10px', marginTop:'5px'}}>{errorMsg}</div>}
+                {errorMsg && <div className="error-msg-box">{errorMsg}</div>}
               </div>
             </div>
 
-            <div className="panel-card">
-              <div className="panel-header">Live Monitor ({activeOrders.length})</div>
-              <div className="scroll-area">
-                {activeOrders.map(o => {
-                  const timeLeft = Math.max(0, Math.floor(300 - (Date.now() - o.createdAt) / 1000));
-                  return (
-                    <div key={o.id} className="number-slot" style={{borderColor: o.status === 'EXPIRED' ? '#450a0a' : o.otp ? '#059669' : '#232d42'}}>
-                      <div style={{ flex: 1 }}>
-                        <span style={{fontSize:'9px', color:'#64748b'}}>ID: {o.id}</span>
-                        <span className={`slot-num ${o.status === 'EXPIRED' ? 'expired' : ''}`}>
-                         {o.number.replace(/^(62|6)/, '')}
-                        </span>
-                        {o.status === 'WAITING' && (
-                          <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px'}}>
-                            <span className="timer-text">{Math.floor(timeLeft/60)}:{String(timeLeft%60).padStart(2,'0')}</span>
-                            <span className="status-desc">Waiting SMS...</span>
-                          </div>
-                        )}
-                        {o.status === 'EXPIRED' && <span className="status-desc text-red">Expired & Refunded</span>}
-                        {o.otp && <span className="status-desc text-green">OTP Received</span>}
+            {/* Middle: Live Monitor */}
+            <div className="card-panel monitor-panel">
+              <div className="card-header">
+                <Clock size={16}/> <span>Live OTP Monitor</span>
+              </div>
+              <div className="card-body">
+                {activeOrders.length === 0 ? (
+                    <div className="empty-state">Menunggu order baru...</div>
+                ) : (
+                  activeOrders.map(order => {
+                    const timeLeft = Math.max(0, Math.floor(300 - (Date.now() - order.createdAt) / 1000));
+                    return (
+                      <div key={order.id} className={`order-slot ${order.status.toLowerCase()}`}>
+                        <div className="slot-info">
+                          <span className="phone-display">{order.number}</span>
+                          <span className="id-display">Ref ID: {order.id}</span>
+                          {order.status === 'WAITING' && <span className="countdown">Sisa Waktu: {Math.floor(timeLeft/60)}:{String(timeLeft%60).padStart(2,'0')}</span>}
+                        </div>
+                        <div className="slot-otp">
+                          {order.otp ? (
+                              <div className="otp-value" onClick={() => copyToClipboard(order.otp)}>{order.otp} <Copy size={10}/></div>
+                          ) : order.status === 'EXPIRED' ? (
+                              <span className="status-label-red">EXPIRED</span>
+                          ) : (
+                              <RefreshCw size={18} className="animate-spin text-blue"/>
+                          )}
+                        </div>
+                        <div className="slot-actions">
+                          <button onClick={() => copyToClipboard(order.number)} className="btn-mini"><Copy size={14}/></button>
+                          <button onClick={() => handleCancel(order.id)} className="btn-mini text-red"><Trash2 size={14}/></button>
+                        </div>
                       </div>
-                      <div style={{ textAlign: 'right', marginRight: '10px' }}>
-                        {o.otp ? <div className="otp-badge">{o.otp}</div> : o.status === 'EXPIRED' ? <RefreshCw size={12} style={{opacity: 0.2}}/> : <RefreshCw size={14} className="animate-spin text-blue"/>}
-                      </div>
-                      <div style={{display: 'flex', gap: '4px'}}>
-                        <button onClick={() => copy(o.otp || o.number.replace(/^(62|6)/, ''))} className="btn-icon"><Copy size={12}/></button>
-                        <button onClick={() => handleCancel(o.id)} className="btn-icon text-red"><Trash2 size={12}/></button>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
 
-            <div className="panel-card">
-              <div className="panel-header">Activity Logs</div>
-              <div className="scroll-area" style={{padding: 0}}>
-                {logs.map((l, i) => (
-                  <div key={i} className="log-row">
-                    <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '9px'}}>
-                      <span className="text-green" style={{fontWeight:'bold'}}>SUCCESS</span>
-                      <span style={{color: '#64748b'}}>{l.time}</span>
+            {/* Right: Small Logs */}
+            <div className="card-panel log-panel">
+              <div className="card-header">
+                <CheckCircle size={16}/> <span>Recent Success</span>
+              </div>
+              <div className="card-body p-0">
+                {logs.slice(0, 10).map((log, i) => (
+                  <div key={i} className="log-entry">
+                    <div className="log-top">
+                      <span className="log-num">{log.number}</span>
+                      <span className="log-time">{log.time}</span>
                     </div>
-                    <div style={{color: '#fff', margin: '2px 0'}}>{l.number.replace(/^(62|6)/, '')}</div>
-                    <div className="text-blue" style={{fontWeight: '900'}}>OTP: {l.otp}</div>
+                    <div className="log-otp-val">OTP: {log.otp}</div>
                   </div>
                 ))}
               </div>
             </div>
           </div>
         ) : (
-          <div style={{padding: '60px', textAlign: 'center'}}>
-            <History size={40} style={{marginBottom: '10px', color: '#64748b'}}/>
-            <h3>Riwayat Aktivitas</h3>
-            <p style={{fontSize: '12px', color: '#64748b', marginBottom: '20px'}}>Menampilkan 50 data terakhir yang tersimpan di perangkat ini.</p>
-            <div style={{display:'flex', gap:'10px', justifyContent:'center'}}>
-                <button className="btn-order-mass" style={{width: 'auto', padding: '10px 20px'}} onClick={() => setActiveMenu('dashboard')}>Kembali</button>
-                <button className="btn-order-single" style={{width: 'auto', padding: '10px 20px', backgroundColor:'#ef4444'}} onClick={clearLogs}>Hapus Semua History</button>
-            </div>
+          <div className="history-full-view">
+             <div className="history-card">
+                <h3>Full History Log</h3>
+                <table className="history-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Country</th>
+                      <th>Phone Number</th>
+                      <th>OTP Code</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {logs.map((l, i) => (
+                      <tr key={i}>
+                        <td>{l.time}</td>
+                        <td>{l.country || 'N/A'}</td>
+                        <td>{l.number}</td>
+                        <td className="text-blue font-bold">{l.otp}</td>
+                        <td className="text-green">SUCCESS</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+             </div>
           </div>
         )}
       </main>
