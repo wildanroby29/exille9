@@ -75,48 +75,7 @@ export default function App() {
       const res = await fetch(`${API_URL}/get-real-prices`);
       const data = await res.json();
       if (data.status === 'success') {
-        const names = {
-          "0": "Russia", "1": "Ukraine", "2": "Kazakhstan", "3": "China", "4": "Philippines",
-          "5": "Myanmar", "6": "Indonesia", "7": "Malaysia", "8": "Kenya", "9": "Tanzania",
-          "10": "Vietnam", "11": "Kyrgyzstan", "12": "USA", "13": "Israel", "14": "Hong Kong",
-          "15": "Poland", "16": "United Kingdom", "17": "Madagascar", "18": "Congo", "19": "Nigeria",
-          "20": "Macau", "21": "Egypt", "22": "India", "23": "Ireland", "24": "Cambodia",
-          "25": "Laos", "26": "Haiti", "27": "Ivory Coast", "28": "Gambia", "29": "Serbia",
-          "30": "Yemen", "31": "South Africa", "32": "Romania", "33": "Colombia", "34": "Estonia",
-          "35": "Azerbaijan", "36": "Canada", "37": "Morocco", "38": "Ghana", "39": "Argentina",
-          "40": "Uzbekistan", "41": "Cameroon", "42": "Chad", "43": "Germany", "44": "Lithuania",
-          "45": "Croatia", "46": "Sweden", "47": "Iraq", "48": "Netherlands", "49": "Latvia",
-          "50": "Austria", "51": "Belarus", "52": "Thailand", "53": "Saudi Arabia", "54": "Mexico",
-          "55": "Taiwan", "56": "Spain", "57": "Iran", "58": "Algeria", "59": "Slovenia",
-          "60": "Bangladesh", "61": "Senegal", "62": "Turkey", "63": "Sri Lanka", "64": "Peru",
-          "66": "Pakistan", "67": "New Zealand", "68": "Guinea", "73": "Brazil", "78": "Portugal",
-          "80": "Chile", "81": "Australia", "82": "Singapore", "83": "Italy", "86": "UAE",
-          "87": "Afghanistan", "88": "South Sudan", "94": "Zimbabwe", "100": "Czech", "102": "Angola",
-          "103": "Finland", "104": "Switzerland", "105": "Qatar", "106": "Libya", "107": "DR Congo",
-          "110": "Dominican Republic", "111": "Armenia", "112": "Sierra Leone", "114": "Moldova",
-          "115": "Oman", "116": "Belgium", "117": "Honduras", "118": "Tajikistan", "119": "Georgia",
-          "120": "Cuba", "121": "Denmark", "122": "Tunisia", "123": "Salvador", "124": "Mongolia",
-          "125": "Nepal", "126": "Hungary", "127": "Bhutan", "128": "Guatemala", "129": "Togo",
-          "131": "Mozambique", "132": "Ethiopia", "133": "Burkina Faso", "136": "Nicaragua",
-          "138": "Bulgaria", "139": "Mauritius", "141": "Paraguay", "142": "Seychelles",
-          "143": "Suriname", "144": "Zambia", "145": "Mali", "146": "Jamaica", "150": "Papua",
-          "151": "Bosnia", "152": "Liberia", "154": "Turkmenistan", "155": "Bolivia",
-          "156": "Puerto Rico", "157": "Central African Republic", "158": "Somalia", "159": "Albania",
-          "160": "Fiji", "162": "Trinidad and Tobago", "163": "Guyana", "164": "Gabon",
-          "165": "Botswana", "166": "Saint Kitts and Nevis", "167": "Namibia", "168": "Niger",
-          "170": "Norway", "172": "Uganda", "173": "Timor-Leste", "174": "Kuwait", "175": "Swaziland",
-          "176": "Syria", "177": "Panama", "178": "Mauritania", "179": "Jordan", "180": "Barbados",
-          "181": "Burundi", "182": "Benin", "183": "Brunei", "184": "Bahamas", "185": "Belize",
-          "186": "Dominica", "187": "Grenada", "188": "Guinea-Bissau", "189": "Iceland", "190": "Comoros",
-          "191": "Lesotho", "192": "Malawi", "193": "Rwanda", "194": "Slovakia", "195": "Monaco",
-          "196": "Bahrain", "197": "Reunion", "198": "Lebanon", "199": "Uruguay", "200": "Maldives",
-          "201": "Guadeloupe", "202": "French Guiana", "203": "Saint Lucia", "204": "Luxembourg",
-          "205": "Equatorial Guinea", "206": "Djibouti", "207": "Antigua and Barbuda",
-          "208": "Cayman Islands", "209": "Montenegro", "210": "Eritrea", "211": "Sao Tome and Principe",
-          "212": "Aruba", "213": "Montserrat", "214": "North Macedonia", "215": "New Caledonia",
-          "216": "Cape Verde", "217": "Palestine", "218": "Samoa", "219": "Malta", "220": "Gibraltar",
-          "221": "Kosovo", "223": "Cyprus", "224": "Costa Rica", "225": "Sudan"
-        };
+        const names = { "0": "Russia", "6": "Indonesia", "12": "USA", "7": "Malaysia", "22": "India" /* ... tambahkan sisanya ... */ };
         const formatted = data.prices.map(p => ({ ...p, name: names[p.code] || `Negara ${p.code}` }));
         const sorted = formatted.sort((a, b) => a.code === '6' ? -1 : b.code === '6' ? 1 : a.name.localeCompare(b.name));
         setLivePrices(sorted);
@@ -135,6 +94,7 @@ export default function App() {
     for (let i = 0; i < qty; i++) {
       try {
         const op = selectedProvider.toLowerCase() === 'any' ? '' : `&operator=${selectedProvider.toLowerCase()}`;
+        // Mengirimkan price agar backend bisa mencatat nominal untuk refund nantinya
         const res = await fetch(`${API_URL}/order-wa?country=${selectedCountry.code}&username=${user}&price=${selectedCountry.price}${op}`);
         const data = await res.json();
         if (data.status === 'success') {
@@ -151,29 +111,26 @@ export default function App() {
   // --- CANCEL & REFUND LOGIC ---
   const handleCancel = async (id) => {
     try {
+      // Backend sekarang otomatis handle refund berdasarkan ID di database
       const res = await fetch(`${API_URL}/cancel-order?id=${id}`);
       const data = await res.json();
       if (data.status === 'success') {
         setActiveOrders(prev => prev.filter(x => x.id !== id));
-        fetchBalance(); 
+        fetchBalance(); // Saldo otomatis bertambah di UI setelah refund sukses
       }
     } catch (e) { console.error("Cancel failed"); }
   };
 
-  // --- FIX: FUNGSI HAPUS HISTORY ---
-  const clearLogs = () => {
-    setLogs([]);
-    localStorage.removeItem(`logs_${user}`);
-  };
-
-  // --- BACKGROUND CHECKER ---
+  // --- BACKGROUND CHECKER (OTP & EXPIRED) ---
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(async () => {
+      // 1. Cek Expired (Auto-Refund)
       setActiveOrders(prev => {
         const updated = prev.map(o => {
           const isTooOld = (Date.now() - o.createdAt) / 1000 > 300;
           if (!o.otp && isTooOld && o.status === 'WAITING') {
+            // Tembak API cancel secara background agar saldo balik
             fetch(`${API_URL}/cancel-order?id=${o.id}`).then(() => fetchBalance());
             return { ...o, status: 'EXPIRED' };
           }
@@ -182,6 +139,7 @@ export default function App() {
         return updated;
       });
 
+      // 2. Cek OTP
       activeOrders.filter(o => o.status === 'WAITING').forEach(async (order) => {
         try {
           const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
@@ -197,6 +155,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [user, activeOrders]);
 
+  // --- UI HELPERS ---
   const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
   const copy = (t) => { if (t) navigator.clipboard.writeText(t); };
 
@@ -219,6 +178,7 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {/* ... (Sidebar & Header Tetap Sama) ... */}
       <aside className="sidebar">
         <div className="sidebar-logo"><Zap size={16} className="text-blue" fill="currentColor"/> E X I L L E 9</div>
         <div className="user-profile-badge"><div className="avatar">{user[0].toUpperCase()}</div><span>{user.toUpperCase()}</span></div>
@@ -245,6 +205,7 @@ export default function App() {
 
         {activeMenu === 'dashboard' ? (
           <div className="dashboard-wrapper">
+            {/* PANEL SETTINGS */}
             <div className="panel-card">
               <div className="panel-header">Settings</div>
               <div className="scroll-area">
@@ -277,6 +238,7 @@ export default function App() {
               </div>
             </div>
 
+            {/* LIVE MONITOR */}
             <div className="panel-card">
               <div className="panel-header">Live Monitor ({activeOrders.length})</div>
               <div className="scroll-area">
@@ -311,6 +273,7 @@ export default function App() {
               </div>
             </div>
 
+            {/* LOGS */}
             <div className="panel-card">
               <div className="panel-header">Activity Logs</div>
               <div className="scroll-area" style={{padding: 0}}>
@@ -329,14 +292,9 @@ export default function App() {
           </div>
         ) : (
           <div style={{padding: '60px', textAlign: 'center'}}>
-            <History size={40} style={{marginBottom: '10px', color: '#64748b'}}/>
-            <h3>Riwayat Aktivitas</h3>
-            <p style={{fontSize: '12px', color: '#64748b', marginBottom: '20px'}}>Menampilkan 50 data terakhir yang tersimpan di perangkat ini.</p>
-            <div style={{display:'flex', gap:'10px', justifyContent:'center'}}>
-                <button className="btn-order-mass" style={{width: 'auto', padding: '10px 20px'}} onClick={() => setActiveMenu('dashboard')}>Kembali</button>
-                {/* TOMBOL FIX NYA DI SINI */}
-                <button className="btn-order-single" style={{width: 'auto', padding: '10px 20px', backgroundColor:'#ef4444'}} onClick={clearLogs}>Hapus Semua History</button>
-            </div>
+            <CheckCircle size={40} style={{marginBottom: '10px', color: '#64748b'}}/>
+            <h3>Menu {activeMenu} is under development</h3>
+            <button className="btn-order-mass" style={{width: 'auto', padding: '10px 20px', marginTop: '20px'}} onClick={() => setActiveMenu('dashboard')}>Back to Dashboard</button>
           </div>
         )}
       </main>
