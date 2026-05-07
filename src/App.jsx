@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
-import { Zap, Smartphone, Search, Copy, Trash2, History, RefreshCw, CheckCircle, Lock, User, LogOut } from 'lucide-react';
+import { Zap, Smartphone, Search, Copy, Trash2, History, RefreshCw, CheckCircle, Lock, User, LogOut, Check } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://wildanrobians29-otp-gateway-api.hf.space';
 
@@ -19,7 +19,7 @@ export default function App() {
   const [isOrderingState, setIsOrderingState] = useState(false);
   const isOrdering = useRef(false);
   const [activeOrders, setActiveOrders] = useState([]);
-  const [logs, setLogs] = useState([]);
+  const [logs, setLogs] = useState([]); // Tetap ada untuk sesi lokal sementara
 
   // --- LOGIN ---
   const handleLogin = async (e) => {
@@ -78,8 +78,6 @@ export default function App() {
       if (data.status === 'success') {
         const sorted = data.prices; 
         setLivePrices(sorted);
-        
-        // Update selection with stock data
         const current = sorted.find(p => p.code === selectedCountry.code) || sorted.find(p => p.code === '6') || sorted[0];
         if (current) {
             setSelectedCountry({ 
@@ -119,39 +117,57 @@ export default function App() {
 
   const handleCancel = async (id) => {
     try {
-      const res = await fetch(`${API_URL}/cancel-order?id=${id}`);
+      const res = await fetch(`${API_URL}/cancel-order?id=${id}&username=${user}`);
       const data = await res.json();
       if (data.status === 'success') {
+        // Tampilkan cancel status sebentar saja di UI, lalu filter
         setActiveOrders(prev => prev.filter(x => x.id !== id));
         fetchBalance();
       }
     } catch (e) { console.error("Cancel failed"); }
   };
 
+  // FUNGSI BARU: Menghilangkan nomor yang sudah sukses
+  const handleFinish = async (id) => {
+    try {
+        const res = await fetch(`${API_URL}/finish-order?id=${id}&username=${user}`);
+        const data = await res.json();
+        if (data.status === 'success') {
+            // Langsung hapus dari layar (Live Monitor)
+            setActiveOrders(prev => prev.filter(x => x.id !== id));
+        }
+    } catch (e) { console.error("Finish order failed"); }
+  };
+
   // --- BACKGROUND CHECKER ---
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(async () => {
-      // Check Expiration
+      // 1. Check Expiration (5 menit)
       setActiveOrders(prev => {
         return prev.map(o => {
           const timeLeft = (Date.now() - o.createdAt) / 1000;
           if (!o.otp && timeLeft > 300 && o.status === 'WAITING') {
-            fetch(`${API_URL}/cancel-order?id=${o.id}`).then(() => fetchBalance());
+            fetch(`${API_URL}/cancel-order?id=${o.id}&username=${user}`).then(() => fetchBalance());
             return { ...o, status: 'EXPIRED' };
           }
           return o;
+        }).filter(o => {
+            // Hilangkan status EXPIRED/CANCELLED dari UI setelah 30 detik agar tidak menumpuk
+            const age = (Date.now() - o.createdAt) / 1000;
+            return !(o.status === 'EXPIRED' && age > 330);
         });
       });
 
-      // Check OTP
+      // 2. Check OTP
       activeOrders.filter(o => o.status === 'WAITING').forEach(async (order) => {
         try {
           const res = await fetch(`${API_URL}/check-otp?id=${order.id}`);
           const data = await res.json();
           if (data.status === 'SUCCESS') {
             setActiveOrders(prev => prev.map(o => o.id === order.id ? { ...o, otp: data.code, status: 'SUCCESS' } : o));
-            setLogs(l => [{ number: order.number, otp: data.code, time: new Date().toLocaleTimeString() }, ...l].slice(0, 50));
+            // Tambahkan ke log aktivitas (akan hilang jika browser di-refresh sesuai keinginan Anda)
+            setLogs(l => [{ number: order.number, otp: data.code, time: new Date().toLocaleTimeString() }, ...l].slice(0, 20));
             fetchBalance();
           }
         } catch (e) {}
@@ -222,7 +238,6 @@ export default function App() {
                   <input type="text" placeholder="Cari Negara..." className="search-input-custom" onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
                 
-                {/* List Negara dengan Stok */}
                 <div style={{maxHeight: '150px', overflowY: 'auto', border: '1px solid #232d42', borderRadius: '4px'}}>
                     {livePrices.filter(n => n.name.toLowerCase().includes(searchTerm.toLowerCase()) || n.code.includes(searchTerm)).map(n => (
                     <div key={n.code} className={`list-item ${selectedCountry.code === n.code ? 'active' : ''}`} onClick={() => setSelectedCountry({code: n.code, price: n.priceIdr, name: n.name, flag: n.flag, stock: n.stock})}>
@@ -272,11 +287,21 @@ export default function App() {
                         {o.otp && <span className="status-desc text-green">OTP Received</span>}
                       </div>
                       <div style={{ textAlign: 'right', marginRight: '10px' }}>
-                        {o.otp ? <div className="otp-badge">{o.otp}</div> : o.status === 'EXPIRED' ? <RefreshCw size={12} style={{opacity: 0.2}}/> : <RefreshCw size={14} className="animate-spin text-blue"/>}
+                        {o.otp ? (
+                            <div className="otp-badge" onClick={() => copy(o.otp)} style={{cursor:'pointer'}}>{o.otp}</div>
+                        ) : o.status === 'EXPIRED' ? (
+                            <RefreshCw size={12} style={{opacity: 0.2}}/>
+                        ) : (
+                            <RefreshCw size={14} className="animate-spin text-blue"/>
+                        )}
                       </div>
                       <div style={{display: 'flex', gap: '4px'}}>
-                        <button onClick={() => copy(o.otp || o.number.replace(/^(62|6)/, ''))} className="btn-icon"><Copy size={12}/></button>
-                        <button onClick={() => handleCancel(o.id)} className="btn-icon text-red"><Trash2 size={12}/></button>
+                        <button onClick={() => copy(o.otp || o.number.replace(/^(62|6)/, ''))} title="Copy" className="btn-icon"><Copy size={12}/></button>
+                        {o.otp ? (
+                            <button onClick={() => handleFinish(o.id)} title="Done & Hide" className="btn-icon text-green"><Check size={12}/></button>
+                        ) : (
+                            <button onClick={() => handleCancel(o.id)} title="Cancel" className="btn-icon text-red"><Trash2 size={12}/></button>
+                        )}
                       </div>
                     </div>
                   );
@@ -285,8 +310,9 @@ export default function App() {
             </div>
 
             <div className="panel-card">
-              <div className="panel-header">Activity Logs</div>
+              <div className="panel-header">Session Activity</div>
               <div className="scroll-area" style={{padding: 0}}>
+                {logs.length === 0 && <div style={{padding:'20px', textAlign:'center', color:'#64748b', fontSize:'10px'}}>No successful OTPs in this session.</div>}
                 {logs.map((l, i) => (
                   <div key={i} className="log-row">
                     <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '9px'}}>
