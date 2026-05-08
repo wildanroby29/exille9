@@ -19,9 +19,16 @@ export default function App() {
   const [isOrderingState, setIsOrderingState] = useState(false);
   const isOrdering = useRef(false);
   const [activeOrders, setActiveOrders] = useState([]);
-  const [logs, setLogs] = useState([]); // Tetap ada untuk sesi lokal sementara
+  const [logs, setLogs] = useState([]); 
+  const [currentTime, setCurrentTime] = useState(Date.now()); // Untuk trigger re-render timer
 
-  // --- LOGIN ---
+  // Update waktu setiap detik agar timer di tombol & slot berjalan real-time
+  useEffect(() => {
+    const t = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // --- LOGIN LOGIC ---
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -120,23 +127,29 @@ export default function App() {
       const res = await fetch(`${API_URL}/cancel-order?id=${id}&username=${user}`);
       const data = await res.json();
       if (data.status === 'success') {
-        // Tampilkan cancel status sebentar saja di UI, lalu filter
         setActiveOrders(prev => prev.filter(x => x.id !== id));
         fetchBalance();
+      } else {
+        alert(data.message); // Menampilkan pesan error dari backend (misal: Wait 2 min)
       }
     } catch (e) { console.error("Cancel failed"); }
   };
 
-  // FUNGSI BARU: Menghilangkan nomor yang sudah sukses
   const handleFinish = async (id) => {
     try {
         const res = await fetch(`${API_URL}/finish-order?id=${id}&username=${user}`);
         const data = await res.json();
         if (data.status === 'success') {
-            // Langsung hapus dari layar (Live Monitor)
             setActiveOrders(prev => prev.filter(x => x.id !== id));
         }
     } catch (e) { console.error("Finish order failed"); }
+  };
+
+  // --- HELPER: Cek apakah sudah bisa cancel (2 Menit) ---
+  const getCancelStatus = (createdAt) => {
+    const elapsed = (currentTime - createdAt) / 1000;
+    const remaining = Math.max(0, Math.ceil(120 - elapsed));
+    return { canCancel: elapsed >= 120, remaining };
   };
 
   // --- BACKGROUND CHECKER ---
@@ -153,7 +166,6 @@ export default function App() {
           }
           return o;
         }).filter(o => {
-            // Hilangkan status EXPIRED/CANCELLED dari UI setelah 30 detik agar tidak menumpuk
             const age = (Date.now() - o.createdAt) / 1000;
             return !(o.status === 'EXPIRED' && age > 330);
         });
@@ -166,7 +178,6 @@ export default function App() {
           const data = await res.json();
           if (data.status === 'SUCCESS') {
             setActiveOrders(prev => prev.map(o => o.id === order.id ? { ...o, otp: data.code, status: 'SUCCESS' } : o));
-            // Tambahkan ke log aktivitas (akan hilang jika browser di-refresh sesuai keinginan Anda)
             setLogs(l => [{ number: order.number, otp: data.code, time: new Date().toLocaleTimeString() }, ...l].slice(0, 20));
             fetchBalance();
           }
@@ -269,7 +280,9 @@ export default function App() {
               <div className="panel-header">Live Monitor ({activeOrders.length})</div>
               <div className="scroll-area">
                 {activeOrders.map(o => {
-                  const timeLeft = Math.max(0, Math.floor(300 - (Date.now() - o.createdAt) / 1000));
+                  const timeLeft = Math.max(0, Math.floor(300 - (currentTime - o.createdAt) / 1000));
+                  const cancelStatus = getCancelStatus(o.createdAt);
+                  
                   return (
                     <div key={o.id} className="number-slot" style={{borderColor: o.status === 'EXPIRED' ? '#450a0a' : o.otp ? '#059669' : '#232d42'}}>
                       <div style={{ flex: 1 }}>
@@ -280,7 +293,7 @@ export default function App() {
                         {o.status === 'WAITING' && (
                           <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px'}}>
                             <span className="timer-text">{Math.floor(timeLeft/60)}:{String(timeLeft%60).padStart(2,'0')}</span>
-                            <span className="status-desc">Waiting SMS...</span>
+                            <span className="status-desc">{cancelStatus.canCancel ? "Ready to Cancel" : `Wait ${cancelStatus.remaining}s`}</span>
                           </div>
                         )}
                         {o.status === 'EXPIRED' && <span className="status-desc text-red">Expired & Refunded</span>}
@@ -297,10 +310,23 @@ export default function App() {
                       </div>
                       <div style={{display: 'flex', gap: '4px'}}>
                         <button onClick={() => copy(o.otp || o.number.replace(/^(62|6)/, ''))} title="Copy" className="btn-icon"><Copy size={12}/></button>
+                        
                         {o.otp ? (
                             <button onClick={() => handleFinish(o.id)} title="Done & Hide" className="btn-icon text-green"><Check size={12}/></button>
                         ) : (
-                            <button onClick={() => handleCancel(o.id)} title="Cancel" className="btn-icon text-red"><Trash2 size={12}/></button>
+                            <button 
+                              onClick={() => handleCancel(o.id)} 
+                              disabled={!cancelStatus.canCancel}
+                              title={cancelStatus.canCancel ? "Cancel" : `Wait ${cancelStatus.remaining}s to cancel`}
+                              className="btn-icon" 
+                              style={{ 
+                                color: cancelStatus.canCancel ? '#ef4444' : '#475569',
+                                opacity: cancelStatus.canCancel ? 1 : 0.4,
+                                cursor: cancelStatus.canCancel ? 'pointer' : 'not-allowed'
+                              }}
+                            >
+                              <Trash2 size={12}/>
+                            </button>
                         )}
                       </div>
                     </div>
